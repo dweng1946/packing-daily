@@ -326,10 +326,11 @@ textarea{min-height:64px;resize:vertical}
 
   // ── ⑤ 실적 등록 현황: 작업자배치(계획 작업자) 중 같은 일자 · Shift 실적에 이름이 있으면 등록
   function crewState() {
-    // [기준정보] I열 실적입력 대상자(2차 포장)가 있으면 그 명단에 있는 계획 작업자만 셈(없으면 계획 작업자 전체)
+    // 실적입력 대상 = 칸마다 두 번째로 적힌 작업자(포장계획 표 순서: 1차 · 2차 포장, 사용자 11/09)
+    //   + [기준정보] I열 실적입력 대상자(2차 포장) 명단에 있을 때만(명단이 비어 있으면 두 번째 작업자 그대로)
     const tg = new Set(D && D.targets || []);
     const crew = (D && D.crew || []).filter(r => r.date === S.date && r.shift === S.shift)
-      .map(r => tg.size ? Object.assign({}, r, { workers: r.workers.filter(n => tg.has(n)) }) : r).filter(r => r.workers.length)
+      .map(r => Object.assign({}, r, { workers: r.workers.slice(1, 2).filter(n => !tg.size || tg.has(n)) })).filter(r => r.workers.length)
       .sort((a, b) => (D.lines.indexOf(a.line) + 99) % 99 - (D.lines.indexOf(b.line) + 99) % 99);
     const done = (D && D.done || []).filter(r => r.date === S.date && r.shift === S.shift);
     const doneAll = new Set(done.flatMap(r => r.workers));
