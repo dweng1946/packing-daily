@@ -113,7 +113,7 @@ textarea{min-height:64px;resize:vertical}
 .crew-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
 .crew-top .big{font-size:28px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:var(--navy)}
 .crew-top .big small{font-size:15px;color:var(--sub);font-weight:600}
-.crew-top .miss{font-size:14px;font-weight:800;color:var(--bad)}
+.crew-top .miss{font-size:14px;font-weight:800;color:var(--sub)}
 .crew-top .allok{font-size:14px;font-weight:800;color:var(--good)}
 .crow{display:grid;grid-template-columns:104px 1fr;gap:8px;padding:9px 0;border-top:1px dashed var(--line);align-items:start}
 .crow .ln{font-size:13.5px;font-weight:700;color:var(--ink);padding-top:4px}
@@ -121,7 +121,7 @@ textarea{min-height:64px;resize:vertical}
 .cws{display:flex;flex-wrap:wrap;gap:6px}
 .cw{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:5px 11px;font-size:13.5px;font-weight:700;border:1px solid transparent}
 .cw.ok{background:var(--good-soft);color:var(--good)}
-.cw.no{background:var(--bad-soft);color:var(--bad);border-color:var(--bad)}
+.cw.no{background:var(--soft);color:var(--sub);border-color:var(--line);font-weight:600}
 .cw.ex{background:var(--soft);color:var(--sub);font-weight:600}
 .crow .nt{grid-column:2;font-size:12px;color:var(--sub)}
 /* 탭 · 실적현황 */
@@ -346,14 +346,12 @@ textarea{min-height:64px;resize:vertical}
       return;
     }
     let reg = 0, tot = 0;
-    const lines = [...new Set([...crew.map(r => r.line), ...done.map(r => r.line)])];
+    const lines = crew.map(r => r.line);   // 일자별 계획(작업자배치)에 있는 사람 · 라인만
     $('#crewBody').innerHTML = lines.map(ln => {
       const c = crew.find(r => r.line === ln), names = c ? c.workers : [];
-      const d = done.find(r => r.line === ln);
       const chips = names.map(n => { tot++; const ok = doneAll.has(n); if (ok) reg++;
-        return `<span class="cw ${ok ? 'ok' : 'no'}">${ok ? '✓' : '미등록'} ${esc(n)}</span>`; }).join('');
-      const extra = (d ? d.workers : []).filter(n => !planned.has(n)).map(n => `<span class="cw ex">+ ${esc(n)}</span>`).join('');
-      return `<div class="crow"><div class="ln">${esc(ln)}${c ? '' : '<small>계획 외 등록</small>'}</div><div class="cws">${chips}${extra}</div>${c && c.note ? `<div class="nt">${esc(c.note)}</div>` : ''}</div>`;
+        return `<span class="cw ${ok ? 'ok' : 'no'}">${ok ? '✓ ' : ''}${esc(n)}</span>`; }).join('');
+      return `<div class="crow"><div class="ln">${esc(ln)}</div><div class="cws">${chips}</div>${c && c.note ? `<div class="nt">${esc(c.note)}</div>` : ''}</div>`;
     }).join('');
     const miss = tot - reg;
     $('#crewSum').innerHTML = `<div class="crew-top"><span class="big">${reg}<small> / ${tot}명 등록</small></span>${miss ? `<span class="miss">미등록 ${miss}명</span>` : '<span class="allok">모두 등록</span>'}</div>`;
