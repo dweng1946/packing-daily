@@ -187,7 +187,8 @@ textarea{min-height:64px;resize:vertical}
       <section class="card">
         <h2><b>③ 일정 달성률</b><span>자동 계산</span></h2>
         <div class="rate"><span class="big" id="rateBig">—</span><span class="eq" id="rateEq"></span></div>
-        <div class="f"><span style="font-size:13px;color:var(--sub);font-weight:600">진도율 현황 (일정 계획표 대비)</span><div class="chips" id="pgChips"></div></div>
+        <div class="f"><span style="font-size:13px;color:var(--sub);font-weight:600">진도율 현황 — 일정 달성률로 자동 판정</span><div class="chips" id="pgChips"></div>
+          <span class="help">100% 이상 선진행 · 90% 이상 ~ 100% 미만 정상 · 90% 미만 지연</span></div>
       </section>
 
       <!-- 4. 사유 · 사진 -->
@@ -426,6 +427,11 @@ textarea{min-height:64px;resize:vertical}
         : (s.done ? `완료 → <b>${pct(r)}</b> 인정` : '미완료 → 0%');
     });
     S.total = tot;
+    // 진도율 자동 판정(사용자 기준 11/09): 100% 이상 선진행 · 90% 이상 정상 · 90% 미만 지연 (소수 오차는 0.01%p 단위로 반올림해 비교)
+    const tr = Math.round(tot * 10000) / 10000;
+    const ready = n && S.stages.every(s => s.kind !== '생산' || (s.actual !== '' && Number(s.target) > 0));   // 실적을 다 넣은 뒤에 판정
+    S.progress = ready ? (tr >= 1 ? '선진행' : tr >= 0.9 ? '정상' : '지연') : '';
+    if (D) renderPg();
     $('#rateBig').textContent = n ? pct(tot) : '—';
     $('#rateEq').textContent = n > 1 ? parts.join(' + ') + ' = ' + pct(tot) : '';
     $('#barSum').innerHTML = `일정 달성률 <b>${n ? pct(tot) : '—'}</b>${S.progress ? ' · ' + S.progress : ''}`;
@@ -433,10 +439,13 @@ textarea{min-height:64px;resize:vertical}
 
   // ── 진도율 · 사유 · 사진
   function renderRef() {
-    $('#pgChips').innerHTML = D.progress.map(p => `<button type="button" class="chip pg" data-v="${p}" aria-pressed="${p === S.progress}">${p}</button>`).join('');
+    renderPg();
     $('#rsChips').innerHTML = D.reasons.map(p => `<button type="button" class="chip" data-r="${p}" aria-pressed="${S.reasons.has(p)}">${p}</button>`).join('');
   }
-  $('#pgChips').onclick = e => { const b = e.target.closest('[data-v]'); if (!b) return; S.progress = b.dataset.v; renderRef(); calc(); };
+  // 진도율 칩은 표시 전용(자동 판정) — 누를 수 없음
+  function renderPg() {
+    $('#pgChips').innerHTML = ['선진행', '정상', '지연'].map(p => `<span class="chip pg" data-v="${p}" aria-pressed="${p === S.progress}" style="cursor:default${p === S.progress ? '' : ';opacity:.45'}">${p}</span>`).join('');
+  }
   $('#rsChips').onclick = e => { const b = e.target.closest('[data-r]'); if (!b) return; const r = b.dataset.r; S.reasons.has(r) ? S.reasons.delete(r) : S.reasons.add(r); renderRef(); };
   $('#inPhoto').onchange = async e => {
     for (const f of [...e.target.files].slice(0, 8 - S.photos.length)) S.photos.push({ uid: ++S.uid, data: await shrink(f) });
@@ -494,7 +503,7 @@ textarea{min-height:64px;resize:vertical}
       if (s.kind === '생산' && s.actual === '') return `${s.slot}의 실적량을 입력하세요(생산하지 못했으면 0).`;
       if (s.kind === '생산' && !(Number(s.target) > 0)) return `${s.slot}의 목표량을 입력하세요.`;
     }
-    if (!S.progress) return '진도율 현황(선진행 · 정상 · 지연)을 고르세요.';
+    if (!S.progress) return '일정 달성률이 계산되지 않았습니다. 작업 구성과 실적을 확인하세요.';
     return '';
   }
   $('#again').onclick = () => {
