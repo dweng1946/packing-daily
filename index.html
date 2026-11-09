@@ -12,17 +12,18 @@
   --bg:#F3F5F9; --card:#FFFFFF; --ink:#1B2333; --sub:#5C6678; --line:#D8DEE8; --soft:#E9EEF6;
   --navy:#1F3864; --navy-ink:#FFFFFF; --accent:#2F5496; --accent-soft:#DCE6F5;
   --good:#1E7B34; --good-soft:#E3F2E7; --warn:#B26A00; --warn-soft:#FFF1D9; --bad:#C0392B; --bad-soft:#FBE4E1;
+  --frame:#C9D4E6; --brand:#E9870C;
   --font:'Pretendard','Pretendard Variable','Apple SD Gothic Neo','Malgun Gothic',system-ui,sans-serif;
   color-scheme:light;
 }
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
   --bg:#0F141C; --card:#171E29; --ink:#E7ECF4; --sub:#9AA6B8; --line:#2A3443; --soft:#1E2734;
   --navy:#9DB8E8; --navy-ink:#0F141C; --accent:#8FB0E8; --accent-soft:#22314A;
-  --good:#6CCB86; --good-soft:#163222; --warn:#F0B35A; --warn-soft:#3A2A10; --bad:#F08A7E; --bad-soft:#3A1C19; color-scheme:dark}}
+  --good:#6CCB86; --good-soft:#163222; --warn:#F0B35A; --warn-soft:#3A2A10; --bad:#F08A7E; --bad-soft:#3A1C19; --frame:#33425A; --brand:#F29A2E; color-scheme:dark}}
 :root[data-theme="dark"]{
   --bg:#0F141C; --card:#171E29; --ink:#E7ECF4; --sub:#9AA6B8; --line:#2A3443; --soft:#1E2734;
   --navy:#9DB8E8; --navy-ink:#0F141C; --accent:#8FB0E8; --accent-soft:#22314A;
-  --good:#6CCB86; --good-soft:#163222; --warn:#F0B35A; --warn-soft:#3A2A10; --bad:#F08A7E; --bad-soft:#3A1C19; color-scheme:dark}
+  --good:#6CCB86; --good-soft:#163222; --warn:#F0B35A; --warn-soft:#3A2A10; --bad:#F08A7E; --bad-soft:#3A1C19; --frame:#33425A; --brand:#F29A2E; color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
@@ -30,13 +31,22 @@ body{background:var(--bg);color:var(--ink);font:15px/1.5 var(--font);-webkit-tex
   padding-left:max(14px,env(safe-area-inset-left,0px));padding-right:max(14px,env(safe-area-inset-right,0px));padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
 .wrap{max-width:560px;margin:0 auto;display:flex;flex-direction:column;gap:12px}
 header.top{position:sticky;top:0;z-index:5;background:var(--bg);padding:calc(10px + env(safe-area-inset-top,0px)) 0 8px;display:flex;align-items:center;justify-content:space-between;gap:8px}
-header.top h1{font-size:18px;margin:0;letter-spacing:-.2px}
+header.top h1{font-size:20px;margin:0;letter-spacing:-.4px;display:flex;align-items:center;gap:8px;font-weight:800}
+header.top h1 .ci{height:28px;width:auto;flex:none}
+header.top h1{white-space:nowrap;min-width:0}
+@media (max-width:420px){#whoName{display:none}}
 header.top .who{font-size:13px;color:var(--sub);display:flex;align-items:center;gap:6px;white-space:nowrap}
 .demo{background:var(--warn-soft);color:var(--warn);font-size:12.5px;padding:8px 12px;border-radius:10px;font-weight:600}
-.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:10px}
-.card h2{margin:0;font-size:14px;color:var(--sub);font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:8px}
-.card h2 b{color:var(--ink)}
-label.f{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--sub);font-weight:600}
+/* 카드: 2px 슬레이트 블루 테두리 + 번호 배지 머리글 + 구분선, 브랜드 주황(대웅 CI)은 항목 표시 막대에만 */
+.card{background:var(--card);border:2px solid var(--frame);border-radius:16px;padding:16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 1px 2px rgba(20,35,60,.05)}
+.card h2{margin:0 0 2px;padding-bottom:10px;border-bottom:1px solid var(--line);font-size:13px;color:var(--sub);font-weight:600;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.card h2 b{color:var(--ink);font-size:16.5px;font-weight:800;letter-spacing:-.3px;display:flex;align-items:center;gap:9px}
+.card h2 .no{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:8px;background:var(--navy);color:var(--navy-ink);font-size:14px;font-weight:800;flex:none}
+.lbl{display:flex;align-items:center;gap:7px;font-size:14px;font-weight:700;color:var(--ink);letter-spacing:-.2px}
+.lbl::before{content:'';width:4px;height:15px;border-radius:2px;background:var(--brand);flex:none}
+.lbl small{font-size:12px;font-weight:600;color:var(--sub)}
+label.f{display:flex;flex-direction:column;gap:6px;font-size:13px;color:var(--sub);font-weight:600}
+div.f{display:flex;flex-direction:column;gap:6px}
 input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:11px 12px;min-height:46px;width:100%}
 input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 textarea{min-height:64px;resize:vertical}
@@ -60,7 +70,7 @@ textarea{min-height:64px;resize:vertical}
 .contrib b{color:var(--ink)}
 .offplan{font-size:12px;color:var(--warn);font-weight:700}
 .wk{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:13px}
-.wk .lab{color:var(--sub);font-weight:600;margin-right:2px}
+.wk .lab{margin-right:4px}
 .wk .nm{background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:4px 10px;font-weight:700}
 .wk .need{color:var(--bad);font-weight:700}
 .wk .pick{border:1px solid var(--line);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 12px;font:inherit;font-size:13px;cursor:pointer;min-height:34px}
@@ -131,7 +141,7 @@ textarea{min-height:64px;resize:vertical}
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>오송포장팀 일일실적보고</h1>
+    <h1><img class="ci" src="ci.png" alt="대웅" width="26" height="28">오송포장팀 일일실적보고</h1>
     <div class="who"><span id="whoName">PIN 미등록</span><button class="chip" id="whoEdit" type="button" style="min-height:32px;padding:4px 10px;font-size:12.5px">PIN 변경</button></div>
   </header>
   <nav class="tabs" role="tablist">
@@ -154,7 +164,7 @@ textarea{min-height:64px;resize:vertical}
   <!-- 0. 팀 PIN -->
   <section class="card" id="secWho" hidden>
     <h2><b>팀 PIN 입력</b><span>이 휴대폰에서 처음 한 번</span></h2>
-    <label class="f">팀 PIN<input id="inPin" inputmode="numeric" maxlength="8" placeholder="팀장에게 받은 숫자"></label>
+    <label class="f"><span class="lbl">팀 PIN</span><input id="inPin" inputmode="numeric" maxlength="8" placeholder="팀장에게 받은 숫자"></label>
     <p class="help">PIN이 맞으면 포장계획과 작업자 명단을 불러옵니다. 작업자는 실적을 넣을 때마다 품목(단계)별로 고릅니다.</p>
     <button class="btn" id="saveWho" type="button">확인</button>
   </section>
@@ -163,12 +173,12 @@ textarea{min-height:64px;resize:vertical}
     <div class="wrap">
       <!-- 1. 일자 · Shift · 라인 -->
       <section class="card">
-        <h2><b>① 일자 · Shift · 라인</b></h2>
+        <h2><b><span class="no">1</span>일자 · Shift · 설비</b></h2>
         <div class="row2">
-          <label class="f">일자<input type="date" id="inDate"></label>
-          <div class="f"><span style="font-size:13px;color:var(--sub);font-weight:600">Shift</span><div class="chips" id="shiftChips"></div></div>
+          <label class="f"><span class="lbl">일자</span><input type="date" id="inDate"></label>
+          <div class="f"><span class="lbl">Shift</span><div class="chips" id="shiftChips"></div></div>
         </div>
-        <div class="chips" id="lineChips"></div>
+        <div class="f"><span class="lbl">설비</span><div class="chips" id="lineChips"></div></div>
         <div class="plan" id="planBox"></div>
         <div class="wk"><span class="help" id="syncTxt">계획 불러오는 중</span><button type="button" class="pick" id="syncBtn">계획 새로고침</button></div>
         <div class="msg ok" id="syncNote" hidden></div>
@@ -176,7 +186,7 @@ textarea{min-height:64px;resize:vertical}
 
       <!-- 2. 작업 구성 -->
       <section class="card">
-        <h2><b>② 작업 구성</b><span id="nStage"></span></h2>
+        <h2><b><span class="no">2</span>작업 구성</b><span id="nStage"></span></h2>
         <p class="help" style="margin:0">이번 Shift에 한 작업을 모두 누르세요. 고른 개수만큼 가중치를 똑같이 나눕니다(4개면 25%씩).</p>
         <div class="chips" id="patChips"></div>
         <div id="stages" style="display:flex;flex-direction:column;gap:8px"></div>
@@ -185,17 +195,17 @@ textarea{min-height:64px;resize:vertical}
 
       <!-- 3. 일정 달성률 · 진도율 -->
       <section class="card">
-        <h2><b>③ 일정 달성률</b><span>자동 계산</span></h2>
+        <h2><b><span class="no">3</span>일정 달성률</b><span>자동 계산</span></h2>
         <div class="rate"><span class="big" id="rateBig">—</span><span class="eq" id="rateEq"></span></div>
-        <div class="f"><span style="font-size:13px;color:var(--sub);font-weight:600">진도율 현황 — 일정 달성률로 자동 판정</span><div class="chips" id="pgChips"></div>
+        <div class="f"><span class="lbl">진도율 현황 <small>일정 달성률로 자동 판정</small></span><div class="chips" id="pgChips"></div>
           <span class="help">100% 이상 선진행 · 90% 이상 ~ 100% 미만 정상 · 90% 미만 지연</span></div>
       </section>
 
       <!-- 4. 사유 · 사진 -->
       <section class="card">
-        <h2><b>④ 사유 · 사진</b><span>선진행 · 정상 · 지연 모두 첨부 가능</span></h2>
-        <div class="chips" id="rsChips"></div>
-        <label class="f">메모 (선택)<textarea id="inMemo" placeholder="필요할 때만 적습니다"></textarea></label>
+        <h2><b><span class="no">4</span>사유 · 사진</b><span>진도율과 관계없이 첨부 가능</span></h2>
+        <div class="f"><span class="lbl">사유 유형</span><div class="chips" id="rsChips"></div></div>
+        <label class="f"><span class="lbl">메모 <small>선택</small></span><textarea id="inMemo" placeholder="필요할 때만 적습니다"></textarea></label>
         <label class="file">📷 사유 캡처 · 사진 첨부<input type="file" id="inPhoto" accept="image/*" multiple></label>
         <div class="thumbs" id="thumbs"></div>
       </section>
@@ -364,7 +374,7 @@ textarea{min-height:64px;resize:vertical}
           <div class="hd"><span class="tag">${s.slot}</span>${!s.planned && s.lot ? '<span class="offplan">계획 외</span>' : ''}<span class="wt">가중치 ${pct(w)}</span><button type="button" class="x" data-del="${s.uid}" aria-label="이 작업 빼기">×</button></div>${wkBlock(s)}
           <select data-f="key"><option value="">품목 · 제조번호 선택</option>${og('이 Shift 계획', opts.here)}${og('이번 주 같은 라인 계획', opts.week)}<option value="__manual" ${cur === '__manual' ? 'selected' : ''}>목록에 없음 — 직접 입력</option></select>
           ${s.manual ? `<div class="qty"><input data-f="product" placeholder="품목명" value="${esc(s.product)}"><input data-f="lot" placeholder="제조번호" value="${esc(s.lot)}"></div>` : ''}
-          <div class="qty"><label class="f">목표량<input data-f="target" inputmode="numeric" value="${s.target}"></label><label class="f">실적량<input data-f="actual" inputmode="numeric" placeholder="입력" value="${s.actual}"></label></div>
+          <div class="qty"><label class="f"><span class="lbl">목표량</span><input data-f="target" inputmode="numeric" value="${s.target}"></label><label class="f"><span class="lbl">실적량</span><input data-f="actual" inputmode="numeric" placeholder="입력" value="${s.actual}"></label></div>
           <label class="toggle lotdone"><input type="checkbox" data-f="done" ${s.done ? 'checked' : ''}> 이 배치${s.lot ? ' (' + esc(s.lot) + ')' : ''} 포장완료</label>
           <div class="contrib" data-c="${s.uid}"></div></div>`;
       }
@@ -378,7 +388,7 @@ textarea{min-height:64px;resize:vertical}
   }
   function wkBlock(s) {
     const names = [...new Set([...D.workers, ...s.workers])];
-    const head = '<div class="wk"><span class="lab">작업자</span>' + (s.workers.length ? s.workers.map(n => '<span class="nm">' + esc(n) + '</span>').join('') : '<span class="need">선택 필요</span>') + '<button type="button" class="pick" data-wk-open="' + s.uid + '">' + (s.open ? '닫기' : '선택') + '</button></div>';
+    const head = '<div class="wk"><span class="lab lbl">작업자</span>' + (s.workers.length ? s.workers.map(n => '<span class="nm">' + esc(n) + '</span>').join('') : '<span class="need">선택 필요</span>') + '<button type="button" class="pick" data-wk-open="' + s.uid + '">' + (s.open ? '닫기' : '선택') + '</button></div>';
     if (!s.open) return head;
     return head + '<div class="wkpanel"><div class="chips">' + names.map(n => '<button type="button" class="chip" data-wk="' + esc(n) + '" aria-pressed="' + s.workers.includes(n) + '">' + esc(n) + '</button>').join('') + '</div><div class="wkadd"><input data-wkin placeholder="명단에 없으면 이름 입력" aria-label="작업자 이름 직접 입력"><button type="button" data-wk-add>추가</button></div></div>';
   }
