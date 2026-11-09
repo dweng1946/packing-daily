@@ -98,6 +98,32 @@ textarea{min-height:64px;resize:vertical}
 .done{text-align:center;gap:12px}
 .done .big{font-size:40px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
 .help{font-size:12.5px;color:var(--sub)}
+/* 탭 · 실적현황 */
+.tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--soft);border-radius:12px;padding:4px}
+.tabs button{border:0;border-radius:9px;background:transparent;color:var(--sub);font:inherit;font-weight:700;font-size:14.5px;min-height:42px;cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.12)}
+.wnav{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.wnav b{font-size:16px;font-variant-numeric:tabular-nums}
+.wnav .pick{min-width:44px}
+.kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.kpi{background:var(--soft);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column;gap:1px}
+.kpi span{font-size:12px;color:var(--sub);font-weight:600}
+.kpi b{font-size:20px;font-variant-numeric:tabular-nums;letter-spacing:-.3px}
+.kpi small{font-size:11.5px;color:var(--sub);font-variant-numeric:tabular-nums}
+.pbar{height:8px;border-radius:4px;background:var(--soft);overflow:hidden}
+.pbar i{display:block;height:100%;border-radius:4px;background:var(--accent)}
+.dt{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.dt th{font-size:11.5px;color:var(--sub);font-weight:600;text-align:right;padding:4px 3px;border-bottom:1px solid var(--line);white-space:nowrap}
+.dt td{text-align:right;padding:6px 3px;border-bottom:1px solid var(--soft);white-space:nowrap}
+.dt th:first-child,.dt td:first-child{text-align:left}
+.dt th:last-child,.dt td:last-child{text-align:left;white-space:normal}
+.dt tr.fut td{color:var(--sub)}
+.dt tr.today td:first-child{font-weight:800;color:var(--navy)}
+.miss{color:var(--warn);font-weight:700}
+.p-good{color:var(--good);font-weight:700}.p-bad{color:var(--bad);font-weight:700}
+.sx{display:inline-block;border-radius:6px;padding:1px 6px;font-size:11.5px;font-weight:700;margin:1px 2px 1px 0;background:var(--soft);color:var(--sub)}
+.sx.g{background:var(--good-soft);color:var(--good)}.sx.n{background:var(--accent-soft);color:var(--accent)}.sx.b{background:var(--bad-soft);color:var(--bad)}
+.rsn{font-size:12.5px;color:var(--sub)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -107,6 +133,20 @@ textarea{min-height:64px;resize:vertical}
     <h1>오송포장팀 일일실적보고</h1>
     <div class="who"><span id="whoName">PIN 미등록</span><button class="chip" id="whoEdit" type="button" style="min-height:32px;padding:4px 10px;font-size:12.5px">PIN 변경</button></div>
   </header>
+  <nav class="tabs" role="tablist">
+    <button type="button" role="tab" data-t="in" aria-selected="true">실적 입력</button>
+    <button type="button" role="tab" data-t="stat" aria-selected="false">실적현황</button>
+  </nav>
+
+  <!-- 실적현황: PIN 없이 누구나(작업자 이름 · 메모는 표시하지 않음) -->
+  <div id="secStat" class="wrap" hidden>
+    <section class="card">
+      <div class="wnav"><button type="button" class="pick" id="stPrev" aria-label="지난주">◀</button><b id="stWeek">—</b><button type="button" class="pick" id="stNext" aria-label="다음 주">▶</button></div>
+      <div class="wk" style="justify-content:space-between"><span class="help" id="stTime">불러오는 중</span><button type="button" class="pick" id="stSync">새로고침</button></div>
+    </section>
+    <div id="stBody" class="wrap"></div>
+    <p class="help" style="margin:0 2px">실적 = 생산(수량) 단계 실적량 합(EA). 같은 일자 · Shift · 라인을 다시 제출하면 마지막 제출만 집계합니다. 누계 % = 누계 실적 ÷ 오늘까지 계획(오늘은 보고된 Shift만). 작업자 이름과 메모는 표시하지 않습니다.</p>
+  </div>
   <div class="demo" id="demoNote" hidden>견본 화면입니다 — 제출해도 저장되지 않습니다(시트 연결 전). 작업자 명단도 견본입니다.</div>
   <div id="loadMsg" class="msg" hidden></div>
 
@@ -187,6 +227,7 @@ textarea{min-height:64px;resize:vertical}
 
   let D = null;                       // { plan, lines, shifts, reasons, progress }
   let who = store.get('pk_who') || null;
+  let tab = location.hash === '#status' ? 'stat' : 'in';
   const S = { date: '', shift: '', line: '', slots: [], by: {}, sel: new Set(), stages: [], progress: '', reasons: new Set(), photos: [], uid: 0 };
 
   // ── 데이터 불러오기(팀 PIN이 맞으면 작업자 명단도 받음) — 시트를 매번 새로 읽으므로 시트 수정이 바로 반영됨
@@ -207,7 +248,7 @@ textarea{min-height:64px;resize:vertical}
     try { D = await fetchData(); }
     catch (e) { show($('#loadMsg'), 'err', '포장계획을 불러오지 못했습니다. 네트워크를 확인하고 새로고침하세요. (' + e.message + ')'); return; }
     if (D.pinOk === false) { D = null; who = null; store.set('pk_who', null); renderWho(); show($('#loadMsg'), 'err', '팀 PIN이 맞지 않습니다. 팀장에게 PIN을 확인하세요.'); return; }
-    $('#demoNote').hidden = !!CFG.API;
+    $('#demoNote').hidden = !!CFG.API || tab !== 'in';
     stamp();
     $('#loadMsg').hidden = true;
     D.workers = D.workers || [];
@@ -241,8 +282,9 @@ textarea{min-height:64px;resize:vertical}
   // ── 팀 PIN(휴대폰에 기억) — 작업자는 단계마다 고름
   function renderWho() {
     $('#whoName').textContent = who ? 'PIN 확인됨' : 'PIN 미등록';
+    if (tab !== 'in') return;
     const ready = !!who && !!D;
-    $('#secWho').hidden = !!who; $('#form').hidden = !ready; $('#bar').hidden = !ready;
+    $('#secWho').hidden = !!who; $('#form').hidden = !ready || S.doneShown; $('#bar').hidden = !ready || S.doneShown; $('#secDone').hidden = !S.doneShown;
     if (!who) { $('#inPin').focus(); }
   }
   $('#saveWho').onclick = () => {
@@ -435,6 +477,7 @@ textarea{min-height:64px;resize:vertical}
       if (!res.ok) throw new Error(res.error || '저장하지 못했습니다');
       $('#doneRate').textContent = pct(res.rate);
       $('#doneText').textContent = `${S.date} ${S.shift} · ${S.line} · ${S.progress} · 사진 ${S.photos.length}장` + (res.demo ? ' — 견본이라 저장하지 않았습니다' : ' — 실적집계표에 저장했습니다');
+      S.doneShown = true; ST.data = null;
       $('#form').hidden = true; $('#bar').hidden = true; $('#secDone').hidden = false; window.scrollTo(0, 0);
     } catch (e) {
       show(m, 'err', '제출하지 못했습니다: ' + e.message + ' — 입력 내용은 그대로 있습니다. 잠시 후 다시 제출하세요.');
@@ -453,11 +496,139 @@ textarea{min-height:64px;resize:vertical}
   }
   $('#again').onclick = () => {
     S.progress = ''; S.reasons = new Set(); S.photos = []; $('#inMemo').value = ''; renderThumbs(); renderRef();
+    S.doneShown = false;
     $('#secDone').hidden = true; $('#form').hidden = false; $('#bar').hidden = false; pickLine(S.line); window.scrollTo(0, 0);
   };
 
+  // ── 탭: 실적 입력 / 실적현황(#status 링크로 바로 열림, PIN 없이 누구나)
+  function setTab(t) {
+    tab = t;
+    try { history.replaceState(null, '', t === 'stat' ? '#status' : location.pathname + location.search); } catch (e) {}
+    document.querySelectorAll('.tabs [data-t]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.t === t)));
+    $('#secStat').hidden = t !== 'stat';
+    $('.top .who').style.visibility = t === 'stat' ? 'hidden' : '';
+    if (t === 'stat') {
+      ['#secWho', '#form', '#bar', '#secDone', '#loadMsg', '#demoNote'].forEach(s => { $(s).hidden = true; });
+      loadStat();
+    } else {
+      $('#demoNote').hidden = !!CFG.API || !D;
+      renderWho();
+      if (who && !D) load();
+    }
+    window.scrollTo(0, 0);
+  }
+  document.querySelector('.tabs').onclick = e => { const b = e.target.closest('[data-t]'); if (b && b.dataset.t !== tab) setTab(b.dataset.t); };
+
+  // ── 실적현황: 주(월~토) · 라인별 일자 실적과 누계
+  const ST = { mon: '', data: null };
+  const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+  const md = s => `${Number(s.slice(5, 7))}/${s.slice(8, 10)}`;
+  const dow = s => DOW[new Date(s + 'T00:00:00').getDay()];
+  const monOf = s => addDays(s, -((new Date(s + 'T00:00:00').getDay() + 6) % 7));
+  const hhmm = t => String(t.getHours()).padStart(2, '0') + ':' + String(t.getMinutes()).padStart(2, '0');
+  const pc0 = x => Math.round(x * 100) + '%';
+  const pcls = x => x >= 1 ? 'p-good' : (x < 0.9 ? 'p-bad' : '');
+  const sum = (a, f) => a.reduce((t, r) => t + Number(r[f] || 0), 0);
+  async function loadStat() {
+    if (!ST.mon) ST.mon = monOf(today());
+    const from = ST.mon, to = addDays(from, 6);
+    $('#stWeek').textContent = `${md(from)}(월) ~ ${md(addDays(from, 5))}(토)`;
+    if (!ST.data || ST.data.from !== from) $('#stBody').innerHTML = '<p class="empty">불러오는 중…</p>';
+    try {
+      let d;
+      if (CFG.API) {
+        const r = await fetch(`${CFG.API}?action=summary&from=${from}&to=${to}&t=${Date.now()}`, { cache: 'no-store' });
+        d = await r.json(); if (!d.ok) throw new Error(d.error || '불러오기 실패');
+      } else {
+        d = await (await fetch('data/demo_plan.json', { cache: 'no-store' })).json();
+        d.plan = d.plan.filter(r => r.date >= from && r.date <= to); d.actual = [];
+      }
+      if (ST.mon !== from) return;          // 그사이 주를 바꿨으면 버림
+      d.from = from; ST.data = d; renderStat();
+      $('#stTime').textContent = `${hhmm(new Date())} 기준 · 1분마다 자동 갱신` + (CFG.API ? '' : ' (견본 — 실적 없음)');
+    } catch (e) { $('#stBody').innerHTML = `<div class="msg err">실적현황을 불러오지 못했습니다: ${esc(e.message)}</div>`; }
+  }
+  $('#stPrev').onclick = () => { ST.mon = addDays(ST.mon, -7); loadStat(); };
+  $('#stNext').onclick = () => { ST.mon = addDays(ST.mon, 7); loadStat(); };
+  $('#stSync').onclick = () => loadStat();
+  setInterval(() => { if (tab === 'stat' && document.visibilityState === 'visible') loadStat(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (tab === 'stat' && document.visibilityState === 'visible') loadStat(); });
+
+  function renderStat() {
+    const d = ST.data, from = ST.mon, td = today();
+    const shifts = (d.shifts && d.shifts.length) ? d.shifts : ['주간', '야간'];
+    const act = d.actual || [];
+    const key = r => r.date + '|' + r.shift + '|' + r.line;
+    const last = {};   // 같은 일자 · Shift · 라인을 다시 제출하면 마지막 제출만
+    act.forEach(r => { const o = last[key(r)]; if (!o || r.at > o.at || (r.at === o.at && r.sid > o.sid)) last[key(r)] = r; });
+    const cur = act.filter(r => last[key(r)].sid === r.sid);
+    const isCase = r => /case|케이스/i.test(r.product + ' ' + r.task);   // 케이스 제작 등 EA가 아닌 단위는 합계 제외
+    const qp = d.plan.filter(r => r.kind === '수량' && !isCase(r));
+    const planned = new Set(d.plan.map(key));
+    const days = []; for (let i = 0; i < 7; i++) { const x = addDays(from, i); if (i < 6 || d.plan.some(r => r.date === x) || cur.some(r => r.date === x)) days.push(x); }
+    const lines = [...new Set([...(d.lines || []), ...cur.map(r => r.line)])].filter(l => d.plan.some(r => r.line === l) || cur.some(r => r.line === l));
+
+    function build(ls) {
+      let wp = 0, cp = 0, ca = 0, due = 0, rep = 0; const rows = [], rsn = {};
+      days.forEach(x => {
+        let p = 0, a = 0, any = false; const sh = [];
+        shifts.forEach(s => ls.forEach(l => {
+          const k = x + '|' + s + '|' + l;
+          const pq = sum(qp.filter(r => key(r) === k), 'target');
+          const rs = cur.filter(r => key(r) === k), ok = rs.length > 0;
+          p += pq; wp += pq;
+          if (x < td || ok) cp += pq;
+          if (ok) {
+            any = true; rep++; a += sum(rs.filter(r => r.kind === '수량' && !isCase(r)), 'actual');
+            const r0 = rs[0]; sh.push({ s, l, ok, rate: r0.rate, pg: r0.progress });
+            String(r0.reasons || '').split(/\s*[,·]\s*/).filter(Boolean).forEach(t => { rsn[t] = (rsn[t] || 0) + 1; });
+          } else if (planned.has(k) && x <= td) sh.push({ s, l, ok, today: x === td });
+          if (planned.has(k) && x <= td) due++;
+        }));
+        ca += a;
+        rows.push({ x, p, a, any, ca, cp, sh });
+      });
+      return { rows, wp, cp, ca, due, rep, rsn };
+    }
+    function chip(o, withLine) {
+      const nm = (withLine ? o.l.replace('블리스터', '').replace('카운터 ', '#').trim() + ' ' : '') + o.s.slice(0, 1);
+      if (!o.ok) return `<span class="sx" title="${esc(o.l + ' ' + o.s)}">${esc(nm)} ${o.today ? '대기' : '미보고'}</span>`;
+      const c = o.pg === '선진행' ? 'g' : (o.pg === '지연' ? 'b' : 'n');
+      return `<span class="sx ${c}" title="${esc(o.l + ' ' + o.s + ' · ' + (o.pg || ''))}">${esc(nm)} ${pc0(o.rate)}</span>`;
+    }
+    function table(b, withLine) {
+      return `<table class="dt"><thead><tr><th>일자</th><th>계획</th><th>실적</th><th>누계</th><th>누계%</th><th>Shift 달성률</th></tr></thead><tbody>${b.rows.map(r => {
+        const fut = r.x > td;
+        const a = r.any ? fmt(r.a) : (r.x < td && r.p ? '<span class="miss">미보고</span>' : '·');
+        const cum = !fut && (r.ca || r.cp) ? fmt(r.ca) : '·';
+        const cpct = !fut && r.cp > 0 ? `<span class="${pcls(r.ca / r.cp)}">${pc0(r.ca / r.cp)}</span>` : '·';
+        const sh = withLine && r.sh.length > 4 ? `<span class="sx">보고 ${r.sh.filter(o => o.ok).length}/${r.sh.length}</span>` : r.sh.map(o => chip(o, withLine)).join('');
+        return `<tr class="${fut ? 'fut' : ''} ${r.x === td ? 'today' : ''}"><td>${md(r.x)} ${dow(r.x)}</td><td>${r.p ? fmt(r.p) : '·'}</td><td>${a}</td><td>${cum}</td><td>${cpct}</td><td>${sh}</td></tr>`;
+      }).join('')}</tbody></table>`;
+    }
+    const rsnTxt = b => { const e = Object.entries(b.rsn).sort((x, y) => y[1] - x[1]); return e.length ? `<div class="rsn">사유: ${e.map(([k, v]) => esc(k) + ' ' + v).join(' · ')}</div>` : ''; };
+    const T = build(lines);
+    const wkPct = T.wp ? Math.min(1, T.ca / T.wp) : 0;
+    let h = `<section class="card"><h2><b>전체 ${lines.length}개 라인</b><span>주간 계획 대비 ${T.wp ? pc0(T.ca / T.wp) : '—'}</span></h2>
+      <div class="pbar" role="img" aria-label="주간 계획 대비 ${T.wp ? pc0(T.ca / T.wp) : '0%'}"><i style="width:${(wkPct * 100).toFixed(1)}%"></i></div>
+      <div class="kpis">
+        <div class="kpi"><span>주간 계획</span><b>${fmt(T.wp)}</b><small>EA · 생산 단계 목표 합</small></div>
+        <div class="kpi"><span>누계 실적</span><b>${fmt(T.ca)}</b><small>EA</small></div>
+        <div class="kpi"><span>오늘까지 계획 대비</span><b class="${T.cp ? pcls(T.ca / T.cp) : ''}">${T.cp ? pc0(T.ca / T.cp) : '—'}</b><small>계획 ${fmt(T.cp)}</small></div>
+        <div class="kpi"><span>보고한 Shift</span><b>${T.rep}<small style="font-size:14px"> / ${T.due}</small></b><small>오늘까지 계획된 Shift</small></div>
+      </div>${table(T, true)}${rsnTxt(T)}</section>`;
+    lines.forEach(l => {
+      const b = build([l]);
+      h += `<section class="card"><h2><b>${esc(l)}</b><span>누계 ${fmt(b.ca)} / ${fmt(b.wp)}${b.cp ? ' · 오늘까지 ' + pc0(b.ca / b.cp) : ''}</span></h2>
+        <div class="pbar"><i style="width:${b.wp ? Math.min(100, b.ca / b.wp * 100).toFixed(1) : 0}%"></i></div>${table(b, false)}${rsnTxt(b)}</section>`;
+    });
+    if (!lines.length) h = '<p class="empty">이 주에는 등록된 계획과 실적이 없습니다.</p>';
+    $('#stBody').innerHTML = h;
+  }
+
   function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function uniq(a) { return [...new Set(a)]; }
+  if (tab === 'stat') setTab('stat');
   load();
 })();
 </script>
