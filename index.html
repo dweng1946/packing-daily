@@ -70,6 +70,7 @@ textarea{min-height:64px;resize:vertical}
 .wkadd button{border:0;border-radius:10px;background:var(--soft);color:var(--ink);font:inherit;padding:0 14px;cursor:pointer}
 .toggle{display:flex;align-items:center;gap:10px;font-size:14px}
 .toggle input{width:24px;height:24px;min-height:0}
+.toggle.lotdone{background:var(--good-soft);color:var(--good);font-weight:700;border-radius:10px;padding:8px 10px}
 .adds{display:flex;flex-wrap:wrap;gap:6px}
 .adds button{border:1px dashed var(--line);background:transparent;color:var(--accent);border-radius:10px;padding:8px 12px;font:inherit;font-size:13.5px;cursor:pointer;min-height:40px}
 .rate{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
@@ -315,7 +316,7 @@ textarea{min-height:64px;resize:vertical}
   }
 
   // ── 작업 구성: 생산1 · 청소 · 세팅 · 생산2(+ 생산3…) 중 고른 개수만큼 가중치 = 1 ÷ 개수
-  function mk(kind, o) { return Object.assign({ uid: ++S.uid, slot: kind, kind, name: kind, code: '', product: '', lot: '', target: '', actual: '', done: true, planned: false, manual: false, workers: [], open: false }, o || {}); }
+  function mk(kind, o) { return Object.assign({ uid: ++S.uid, slot: kind, kind, name: kind, code: '', product: '', lot: '', target: '', actual: '', done: kind !== '생산', planned: false, manual: false, workers: [], open: false }, o || {}); }
   function fromPlan(r, slot) { return mk('생산', { slot, key: r.id + '|' + r.step, code: r.code, product: r.product, lot: r.lot, target: r.target || '', planned: true }); }
   function buildSlots() {
     const c = cellRows(), q = c.filter(r => r.kind === '수량'), t = c.filter(r => r.kind !== '수량');
@@ -363,6 +364,7 @@ textarea{min-height:64px;resize:vertical}
           <select data-f="key"><option value="">품목 · 제조번호 선택</option>${og('이 Shift 계획', opts.here)}${og('이번 주 같은 라인 계획', opts.week)}<option value="__manual" ${cur === '__manual' ? 'selected' : ''}>목록에 없음 — 직접 입력</option></select>
           ${s.manual ? `<div class="qty"><input data-f="product" placeholder="품목명" value="${esc(s.product)}"><input data-f="lot" placeholder="제조번호" value="${esc(s.lot)}"></div>` : ''}
           <div class="qty"><label class="f">목표량<input data-f="target" inputmode="numeric" value="${s.target}"></label><label class="f">실적량<input data-f="actual" inputmode="numeric" placeholder="입력" value="${s.actual}"></label></div>
+          <label class="toggle lotdone"><input type="checkbox" data-f="done" ${s.done ? 'checked' : ''}> 이 배치${s.lot ? ' (' + esc(s.lot) + ')' : ''} 포장완료</label>
           <div class="contrib" data-c="${s.uid}"></div></div>`;
       }
       return `<div class="stage" data-u="${s.uid}">
@@ -476,7 +478,8 @@ textarea{min-height:64px;resize:vertical}
       }
       if (!res.ok) throw new Error(res.error || '저장하지 못했습니다');
       $('#doneRate').textContent = pct(res.rate);
-      $('#doneText').textContent = `${S.date} ${S.shift} · ${S.line} · ${S.progress} · 사진 ${S.photos.length}장` + (res.demo ? ' — 견본이라 저장하지 않았습니다' : ' — 실적집계표에 저장했습니다');
+      const fin = S.stages.filter(s => s.kind === '생산' && s.done).map(s => s.lot || s.product);
+      $('#doneText').textContent = `${S.date} ${S.shift} · ${S.line} · ${S.progress} · 사진 ${S.photos.length}장` + (fin.length ? ` · 포장완료 배치 ${fin.join(', ')}` : '') + (res.demo ? ' — 견본이라 저장하지 않았습니다' : ' — 실적집계표에 저장했습니다');
       S.doneShown = true; ST.data = null;
       $('#form').hidden = true; $('#bar').hidden = true; $('#secDone').hidden = false; window.scrollTo(0, 0);
     } catch (e) {
@@ -606,6 +609,10 @@ textarea{min-height:64px;resize:vertical}
         return `<tr class="${fut ? 'fut' : ''} ${r.x === td ? 'today' : ''}"><td>${md(r.x)} ${dow(r.x)}</td><td>${r.p ? fmt(r.p) : '·'}</td><td>${a}</td><td>${cum}</td><td>${cpct}</td><td>${sh}</td></tr>`;
       }).join('')}</tbody></table>`;
     }
+    const finTxt = ls => {   // 이 주에 포장완료 체크된 배치(마지막 제출 기준)
+      const f = [...new Set(cur.filter(r => ls.includes(r.line) && r.kind === '수량' && r.done && r.lot).map(r => r.lot))];
+      return f.length ? `<div class="rsn">포장완료 배치 ${f.length}: ${f.map(esc).join(' · ')}</div>` : '';
+    };
     const rsnTxt = b => { const e = Object.entries(b.rsn).sort((x, y) => y[1] - x[1]); return e.length ? `<div class="rsn">사유: ${e.map(([k, v]) => esc(k) + ' ' + v).join(' · ')}</div>` : ''; };
     const T = build(lines);
     const wkPct = T.wp ? Math.min(1, T.ca / T.wp) : 0;
@@ -616,11 +623,11 @@ textarea{min-height:64px;resize:vertical}
         <div class="kpi"><span>누계 실적</span><b>${fmt(T.ca)}</b><small>EA</small></div>
         <div class="kpi"><span>오늘까지 계획 대비</span><b class="${T.cp ? pcls(T.ca / T.cp) : ''}">${T.cp ? pc0(T.ca / T.cp) : '—'}</b><small>계획 ${fmt(T.cp)}</small></div>
         <div class="kpi"><span>보고한 Shift</span><b>${T.rep}<small style="font-size:14px"> / ${T.due}</small></b><small>오늘까지 계획된 Shift</small></div>
-      </div>${table(T, true)}${rsnTxt(T)}</section>`;
+      </div>${table(T, true)}${finTxt(lines)}${rsnTxt(T)}</section>`;
     lines.forEach(l => {
       const b = build([l]);
       h += `<section class="card"><h2><b>${esc(l)}</b><span>누계 ${fmt(b.ca)} / ${fmt(b.wp)}${b.cp ? ' · 오늘까지 ' + pc0(b.ca / b.cp) : ''}</span></h2>
-        <div class="pbar"><i style="width:${b.wp ? Math.min(100, b.ca / b.wp * 100).toFixed(1) : 0}%"></i></div>${table(b, false)}${rsnTxt(b)}</section>`;
+        <div class="pbar"><i style="width:${b.wp ? Math.min(100, b.ca / b.wp * 100).toFixed(1) : 0}%"></i></div>${table(b, false)}${finTxt([l])}${rsnTxt(b)}</section>`;
     });
     if (!lines.length) h = '<p class="empty">이 주에는 등록된 계획과 실적이 없습니다.</p>';
     $('#stBody').innerHTML = h;
