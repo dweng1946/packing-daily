@@ -623,16 +623,8 @@ textarea{min-height:64px;resize:vertical}
       return f.length ? `<div class="rsn">포장완료 배치 ${f.length}: ${f.map(esc).join(' · ')}</div>` : '';
     };
     const rsnTxt = b => { const e = Object.entries(b.rsn).sort((x, y) => y[1] - x[1]); return e.length ? `<div class="rsn">사유: ${e.map(([k, v]) => esc(k) + ' ' + v).join(' · ')}</div>` : ''; };
-    const T = build(lines);
-    const wkPct = T.wp ? Math.min(1, T.ca / T.wp) : 0;
-    let h = `<section class="card"><h2><b>전체 ${lines.length}개 라인</b><span>주간 계획 대비 ${T.wp ? pc0(T.ca / T.wp) : '—'}</span></h2>
-      <div class="pbar" role="img" aria-label="주간 계획 대비 ${T.wp ? pc0(T.ca / T.wp) : '0%'}"><i style="width:${(wkPct * 100).toFixed(1)}%"></i></div>
-      <div class="kpis">
-        <div class="kpi"><span>주간 계획</span><b>${fmt(T.wp)}</b><small>EA · 생산 단계 목표 합</small></div>
-        <div class="kpi"><span>누계 실적</span><b>${fmt(T.ca)}</b><small>EA</small></div>
-        <div class="kpi"><span>오늘까지 계획 대비</span><b class="${T.cp ? pcls(T.ca / T.cp) : ''}">${T.cp ? pc0(T.ca / T.cp) : '—'}</b><small>계획 ${fmt(T.cp)}</small></div>
-        <div class="kpi"><span>보고한 Shift</span><b>${T.rep}<small style="font-size:14px"> / ${T.due}</small></b><small>오늘까지 계획된 Shift</small></div>
-      </div>${table(T, true)}${finTxt(lines)}${rsnTxt(T)}</section>`;
+    // 11/09 사용자 지시: 전체 라인 합계 카드는 빼고 라인별 카드만 표시
+    let h = '';
     lines.forEach(l => {
       const b = build([l]);
       h += `<section class="card"><h2><b>${esc(l)}</b><span>누계 ${fmt(b.ca)} / ${fmt(b.wp)}${b.cp ? ' · 오늘까지 ' + pc0(b.ca / b.cp) : ''}</span></h2>
