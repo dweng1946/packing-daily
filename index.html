@@ -176,7 +176,8 @@ dialog.pv[open]{display:flex;flex-direction:column}
 .chip:disabled:not([aria-pressed="true"]){opacity:.35}
 input:disabled{opacity:.6}
 .thumbs figure.old span{position:absolute;left:4px;bottom:4px;background:rgba(15,20,28,.72);color:#fff;border-radius:6px;padding:0 6px;font-size:11px;font-weight:700}
-#subNote{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+#subNote{border-color:var(--navy)}
+#subNote .btn,#secDone .btn{width:100%}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -241,7 +242,6 @@ input:disabled{opacity:.6}
         </div>
         <div class="f"><span class="lbl">설비</span><div class="chips" id="lineChips"></div></div>
         <div class="plan" id="planBox"></div>
-        <div class="msg ok" id="subNote" hidden></div>
         <div class="wk"><span class="help" id="syncTxt">계획 불러오는 중</span><button type="button" class="pick" id="syncBtn">계획 새로고침</button></div>
         <div class="msg ok" id="syncNote" hidden></div>
       </section>
@@ -271,6 +271,8 @@ input:disabled{opacity:.6}
         <label class="file">📷 사유 캡처 · 사진 첨부<input type="file" id="inPhoto" accept="image/*" multiple></label>
         <div class="thumbs" id="thumbs"></div>
       </section>
+      <!-- 제출된 실적 수정(11/12 사용자: 맨 아래 · 버튼 「수정」 · 작업일 다음날까지) -->
+      <section class="card" id="subNote" hidden></section>
       <div id="formMsg" class="msg err" hidden></div>
     </div>
   </form>
@@ -280,7 +282,7 @@ input:disabled{opacity:.6}
     <div class="big" id="doneRate">—</div>
     <div id="doneText" class="help"></div>
     <button class="btn" id="again" type="button">다음 실적 입력</button>
-    <button class="btn sub" id="editLast" type="button">방금 제출한 실적 수정</button>
+    <button class="btn sub" id="editLast" type="button">수정</button>
   </section>
 
 </div>
@@ -389,7 +391,7 @@ input:disabled{opacity:.6}
     $('#planBox').innerHTML = c.length
       ? `<span class="basis">${esc(c[0].basis || '계획')}</span><span>${esc(uniq(c.filter(r => r.kind === '수량').map(r => r.product + (r.lot ? ' · ' + r.lot : ''))).join(' / ') || uniq(c.map(r => r.task || r.product)).join(' / '))}</span><span class="help">계획ID ${esc(c[0].id)} · ${c.length}단계</span>`
       : `<span class="empty">이 일자 · Shift · 라인에는 등록된 계획이 없습니다. 아래에서 작업 구성을 직접 고르세요.</span>`;
-    buildSlots(); renderSubNote();
+    buildSlots(); renderSubNote(); $('#formMsg').hidden = true;
   }
 
   // ── 작업 구성: 생산1 · 청소 · 세팅 · 생산2(+ 생산3…) 중 고른 개수만큼 가중치 = 1 ÷ 개수
@@ -558,6 +560,7 @@ input:disabled{opacity:.6}
         offPlan: s.kind === '생산' && !s.planned })),
       // 수정(11/12): 대체할 제출ID와 사유, 기존 사진 링크(다시 올리지 않음) — Apps Script v6에서 시트 「수정대상ID · 수정사유」 열에 남김
       edit: S.edit ? { sid: S.edit.sid, why: $('#inEditWhy').value.trim() } : null, keep: S.edit ? S.keep.slice() : [] };
+    if (!S.edit && submitted() && !confirm('이미 실적이 제출된 칸입니다. 새로 제출하면 이전 제출 대신 이 내용으로 집계됩니다.\n\n고칠 내용이면 [취소]를 누르고 맨 아래 [수정]으로 기존 실적을 불러오세요.\n그래도 새로 제출할까요?')) return;
     const btn = $('#submit'); btn.disabled = true; btn.textContent = '보내는 중…';
     try {
       let res = { ok: true, rate: S.total, demo: true };
@@ -569,11 +572,12 @@ input:disabled{opacity:.6}
         const r = await fetch(CFG.API, { method: 'POST', body: JSON.stringify(payload) });
         res = await r.json();
       }
-      if (!res.ok) throw Object.assign(new Error(res.error || '저장하지 못했습니다'), { stale: res.code === 'stale' });
+      if (!res.ok) throw Object.assign(new Error(res.error || '저장하지 못했습니다'), { stale: res.code === 'stale' || res.code === 'expired' });
       $('#doneRate').textContent = pct(res.rate);
       const wasEdit = !!S.edit;
       S.last = { date: S.date, shift: S.shift, line: S.line };
       $('#doneTitle').textContent = wasEdit ? '수정했습니다' : '제출했습니다';
+      $('#editLast').hidden = !canEdit(S.date);
       const fin = S.stages.filter(s => s.kind === '생산' && s.done).map(s => s.lot || s.product);
       $('#doneText').textContent = (wasEdit ? '이전 제출 대신 이 내용으로 집계합니다 · ' : '') + `${S.date} ${S.shift} · ${S.line} · ${S.progress} · 사진 ${wasEdit ? '추가 ' : ''}${S.photos.length}장` + (fin.length ? ` · 포장완료 배치 ${fin.join(', ')}` : '') + (res.demo ? ' — 견본이라 저장하지 않았습니다' : ' — 실적집계표에 저장했습니다');
       endEdit(); S.doneShown = true; ST.data = null; refreshPlan(false);
@@ -583,6 +587,7 @@ input:disabled{opacity:.6}
     } finally { btn.disabled = false; btn.textContent = S.edit ? '수정 제출' : '제출'; }
   };
   function check() {
+    if ((S.edit || submitted()) && !canEdit(S.date)) return '이미 제출된 칸이고 수정 기간(작업일 다음날까지)이 지났습니다. 고칠 내용은 팀장 · 기사에게 요청하세요.';
     if (S.edit && !$('#inEditWhy').value.trim()) return '수정 사유를 적어 주세요(무엇을 왜 고쳤는지). 맨 위 「제출한 실적 수정」 칸에 적습니다.';
     if (!S.stages.length) return '작업 구성(생산1 · 청소 · 세팅 · 생산2)을 하나 이상 고르세요.';
     for (const [i, s] of S.stages.entries()) {
@@ -817,7 +822,8 @@ input:disabled{opacity:.6}
         ${pinOk ? `<div><span>메모</span><b class="memo">${esc(g.memo || '—')}</b></div><div><span>작업자</span><b>${wk || '—'}</b></div>${g.editWhy ? `<div><span>수정 사유</span><b>${esc(g.editWhy)}</b></div>` : ''}`
                 : '<p class="help">작업자와 메모는 「실적 입력」 탭에서 팀 PIN을 등록한 휴대폰에서 보입니다.</p>'}
         <table class="dt"><thead><tr><th>품목 · 작업</th><th>제조번호</th><th>목표</th><th>실적</th></tr></thead><tbody>${rows}</tbody></table>
-        ${pinOk ? `<button type="button" class="btn sub" data-ed="${esc(g.date)}|${esc(g.shift)}|${esc(g.line)}">이 실적 수정</button>` : ''}
+        ${pinOk ? (canEdit(g.date) ? `<button type="button" class="btn sub" data-ed="${esc(g.date)}|${esc(g.shift)}|${esc(g.line)}">수정</button><p class="help" style="margin:0">고칠 내용이 있으면 새로 입력하지 말고 기존 입력 실적을 불러와서 수정하세요(작업일 다음날까지).</p>`
+                                : '<p class="help" style="margin:0">수정 기간(작업일 다음날까지)이 지났습니다. 고칠 내용은 팀장 · 기사에게 요청하세요.</p>') : ''}
         <p class="help">제출 ${esc(g.at)}${g.n > 1 ? ` · ${g.n}번 제출 — 마지막 제출 기준(사진은 모두 표시)` : ''}${g.photos.length ? ' · 사진을 누르면 원본(구글 드라이브)이 열립니다' : ''}</p>
       </div>`;
     const dl = $('#phDlg');
@@ -840,12 +846,19 @@ input:disabled{opacity:.6}
   // ── 제출한 실적 수정(11/12)
   //    같은 일자 · Shift · 설비를 다시 제출하면 마지막 제출만 집계(실적현황 · 작업일보 · 대시보드 공통) — 시트에는 이전 제출이 이력으로 남음
   //    일자 · Shift · 설비는 바꿀 수 없음(바꾸면 잘못 낸 칸이 그대로 남음) · 수정 사유 필수 · 사진은 기존 사진 유지 + 추가만
+  // 수정 가능 기간: 작업일 당일 · 다음날까지(사용자 11/12) — Apps Script v7에서도 같은 기준으로 막음
+  function canEdit(d) { return !!d && today() <= addDays(d, 1); }
   const submitted = () => !!D && (D.done || []).some(o => o.date === S.date && o.shift === S.shift && o.line === S.line);
   function renderSubNote() {
     const el = $('#subNote'); if (!el) return;
     if (S.edit || !submitted()) { el.hidden = true; return; }
     el.hidden = false;
-    el.innerHTML = '<span>이 일자 · Shift · 설비는 이미 실적이 제출됐습니다. 고칠 내용이 있으면 새로 입력하지 말고 불러와서 수정하세요.</span><button type="button" class="pick" id="subEdit">불러와서 수정</button>';
+    const ok = canEdit(S.date);
+    el.innerHTML = '<h2><b>제출된 실적 수정</b><span>작업일 다음날까지</span></h2>'
+      + '<p class="help" style="margin:0">이 일자 · Shift · 설비는 이미 실적이 제출됐습니다.</p>'
+      + `<button type="button" class="btn sub" id="subEdit"${ok ? '' : ' disabled'}>수정</button>`
+      + (ok ? '<p class="help" style="margin:0">고칠 내용이 있으면 새로 입력하지 말고 기존 입력 실적을 불러와서 수정하세요.</p>'
+            : '<p class="help" style="margin:0;color:var(--bad)">수정 기간(작업일 다음날까지)이 지났습니다. 고칠 내용은 팀장 · 기사에게 요청하세요.</p>');
   }
   async function fetchCell(date, shift, line) {
     const r = await fetch(`${CFG.API}?action=summary&from=${date}&to=${date}&pin=${encodeURIComponent(who.pin)}&t=${Date.now()}`, { cache: 'no-store' });
@@ -863,6 +876,7 @@ input:disabled{opacity:.6}
     if (!who) { renderWho(); return; }
     if (!D) await load();
     if (!D) return;
+    if (!canEdit(date)) { show(fm, 'err', `${md(date)} 실적은 수정 기간(작업일 다음날까지)이 지났습니다. 팀장 · 기사에게 요청하세요.`); fm.hidden = false; return; }
     const lm = $('#loadMsg'); show(lm, 'ok', '제출한 실적을 불러오는 중…');
     let c; try { c = await fetchCell(date, shift, line); } catch (e) { show(lm, 'err', '제출한 실적을 불러오지 못했습니다: ' + e.message); return; }
     if (!c) { show(lm, 'err', `${md(date)} ${shift} · ${line}에는 제출된 실적이 없습니다.`); return; }
@@ -908,7 +922,7 @@ input:disabled{opacity:.6}
     $('#submit').textContent = e ? '수정 제출' : '제출';
     if (e) {
       $('#edWhen').textContent = e.n > 1 ? `${e.n}번 제출된 칸` : '';
-      $('#edInfo').innerHTML = `<b>${md(e.date)}(${dow(e.date)}) ${esc(e.shift)} · ${esc(e.line)}</b> — ${esc(e.at)}에 마지막으로 제출한 내용을 불러왔습니다. 고친 뒤 <b>수정 제출</b>을 누르면 이 내용으로 집계되고, 이전 제출은 시트에 이력으로 남습니다. 일자 · Shift · 설비는 바꿀 수 없습니다(잘못 고른 경우 팀장 · 기사에게 알려 주세요). 사진은 지울 수 없고 추가만 됩니다.`;
+      $('#edInfo').innerHTML = `<b>${md(e.date)}(${dow(e.date)}) ${esc(e.shift)} · ${esc(e.line)}</b> — ${esc(e.at)}에 마지막으로 제출한 내용을 불러왔습니다. 고친 뒤 <b>수정 제출</b>을 누르면 이 내용으로 집계되고, 이전 제출은 시트에 이력으로 남습니다. 일자 · Shift · 설비는 바꿀 수 없습니다(잘못 고른 경우 팀장 · 기사에게 알려 주세요). 사진은 지울 수 없고 추가만 됩니다. 수정은 작업일 다음날까지 가능합니다.`;
     }
     if (D) renderTop();
     renderSubNote();
