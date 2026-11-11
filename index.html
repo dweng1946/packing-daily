@@ -110,21 +110,6 @@ textarea{min-height:64px;resize:vertical}
 .done{text-align:center;gap:12px}
 .done .big{font-size:40px;font-weight:800;color:var(--navy);font-variant-numeric:tabular-nums}
 .help{font-size:12.5px;color:var(--sub)}
-/* 실적 등록 현황 */
-.crew-top{display:flex;align-items:baseline;justify-content:space-between;gap:8px;flex-wrap:wrap}
-.crew-top .big{font-size:28px;font-weight:800;letter-spacing:-.5px;font-variant-numeric:tabular-nums;color:var(--navy)}
-.crew-top .big small{font-size:15px;color:var(--sub);font-weight:600}
-.crew-top .miss{font-size:14px;font-weight:800;color:var(--sub)}
-.crew-top .allok{font-size:14px;font-weight:800;color:var(--good)}
-.crow{display:grid;grid-template-columns:104px 1fr;gap:8px;padding:9px 0;border-top:1px dashed var(--line);align-items:start}
-.crow .ln{font-size:13.5px;font-weight:700;color:var(--ink);padding-top:4px}
-.crow .ln small{display:block;font-size:11.5px;color:var(--sub);font-weight:600}
-.cws{display:flex;flex-wrap:wrap;gap:6px}
-.cw{display:inline-flex;align-items:center;gap:4px;border-radius:999px;padding:5px 11px;font-size:13.5px;font-weight:700;border:1px solid transparent}
-.cw.ok{background:var(--good-soft);color:var(--good)}
-.cw.no{background:var(--soft);color:var(--sub);border-color:var(--line);font-weight:600}
-.cw.ex{background:var(--soft);color:var(--sub);font-weight:600}
-.crow .nt{grid-column:2;font-size:12px;color:var(--sub)}
 /* 탭 · 실적현황 */
 .tabs{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:var(--soft);border-radius:12px;padding:4px}
 .tabs button{border:0;border-radius:9px;background:transparent;color:var(--sub);font:inherit;font-weight:700;font-size:14.5px;min-height:42px;cursor:pointer}
@@ -280,13 +265,6 @@ dialog.pv[open]{display:flex;flex-direction:column}
     <button class="btn" id="again" type="button">다음 실적 입력</button>
   </section>
 
-  <!-- 5. 실적 등록 현황: 작업자배치(계획 작업자) 대비 등록 · 미등록 인원 — 팀 PIN이 맞을 때만 이름을 받음 -->
-  <section class="card" id="secCrew" hidden>
-    <h2><b><span class="no">5</span>실적 등록 현황</b><span id="crewWhen"></span></h2>
-    <div id="crewSum"></div>
-    <div id="crewBody"></div>
-    <p class="help" style="margin:0">위 ①의 일자 · Shift 기준 · 1분마다 갱신</p>
-  </section>
 </div>
 
 <div class="bar" id="bar"><div class="in">
@@ -346,7 +324,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
     let d; try { d = await fetchData(); } catch (e) { if (manual) show($('#syncNote'), 'err', '계획을 다시 불러오지 못했습니다: ' + e.message); return; }
     if (d.pinOk === false) return;
     const before = JSON.stringify(cellRows()); const changed = JSON.stringify(D.plan) !== JSON.stringify(d.plan) || JSON.stringify(D.workers) !== JSON.stringify(d.workers) || JSON.stringify(D.lines) !== JSON.stringify(d.lines);
-    D = d; D.workers = D.workers || []; stamp(); renderCrew();
+    D = d; D.workers = D.workers || []; stamp();
     if (!changed) { if (manual) show($('#syncNote'), 'ok', '시트와 같습니다. 바뀐 계획이 없습니다.'); return; }
     renderTop(); renderRef();
     const cellChanged = JSON.stringify(cellRows()) !== before;
@@ -365,45 +343,10 @@ dialog.pv[open]{display:flex;flex-direction:column}
     if (tab !== 'in') return;
     const ready = !!who && !!D;
     $('#secWho').hidden = !!who; $('#form').hidden = !ready || S.doneShown; $('#bar').hidden = !ready || S.doneShown; $('#secDone').hidden = !S.doneShown;
-    renderCrew();
+   
     if (!who) { $('#inPin').focus(); }
   }
 
-  // ── ⑤ 실적 등록 현황: 작업자배치(계획 작업자) 중 같은 일자 · Shift 실적에 이름이 있으면 등록
-  function crewState() {
-    // 실적입력 대상 = 칸마다 두 번째로 적힌 작업자(포장계획 표 순서: 1차 · 2차 포장, 사용자 11/09)
-    //   + [기준정보] I열 실적입력 대상자(2차 포장) 명단에 있을 때만(명단이 비어 있으면 두 번째 작업자 그대로)
-    const tg = new Set(D && D.targets || []);
-    const crew = (D && D.crew || []).filter(r => r.date === S.date && r.shift === S.shift)
-      .map(r => Object.assign({}, r, { workers: r.workers.slice(1, 2).filter(n => !tg.size || tg.has(n)) })).filter(r => r.workers.length)
-      .sort((a, b) => (D.lines.indexOf(a.line) + 99) % 99 - (D.lines.indexOf(b.line) + 99) % 99);
-    const done = (D && D.done || []).filter(r => r.date === S.date && r.shift === S.shift);
-    const doneAll = new Set(done.flatMap(r => r.workers));
-    const planned = new Set(crew.flatMap(r => r.workers));
-    return { crew, done, doneAll, planned };
-  }
-  function renderCrew() {
-    const el = $('#secCrew');
-    if (!D || !D.crew || tab !== 'in' || !who) { el.hidden = true; return; }
-    el.hidden = false;
-    const { crew, done, doneAll, planned } = crewState();
-    $('#crewWhen').textContent = `${S.date.slice(5).replace('-', '/')} ${S.shift}`;
-    if (!crew.length) {
-      $('#crewSum').innerHTML = '';
-      $('#crewBody').innerHTML = '<p class="empty">시트 [작업자배치] 탭에 이 일자 · Shift의 계획 작업자가 없습니다. 포장계획 담당자가 입력하면 여기에 등록 · 미등록 인원이 나옵니다.</p>';
-      return;
-    }
-    let reg = 0, tot = 0;
-    const lines = crew.map(r => r.line);   // 일자별 계획(작업자배치)에 있는 사람 · 라인만
-    $('#crewBody').innerHTML = lines.map(ln => {
-      const c = crew.find(r => r.line === ln), names = c ? c.workers : [];
-      const chips = names.map(n => { tot++; const ok = doneAll.has(n); if (ok) reg++;
-        return `<span class="cw ${ok ? 'ok' : 'no'}">${ok ? '✓ ' : ''}${esc(n)}</span>`; }).join('');
-      return `<div class="crow"><div class="ln">${esc(ln)}</div><div class="cws">${chips}</div>${c && c.note ? `<div class="nt">${esc(c.note)}</div>` : ''}</div>`;
-    }).join('');
-    const miss = tot - reg;
-    $('#crewSum').innerHTML = `<div class="crew-top"><span class="big">${reg}<small> / ${tot}명 등록</small></span>${miss ? `<span class="miss">미등록 ${miss}명</span>` : '<span class="allok">모두 등록</span>'}</div>`;
-  }
   $('#saveWho').onclick = () => {
     const pin = $('#inPin').value.trim();
     if (!pin) { $('#inPin').placeholder = 'PIN을 입력하세요'; return; }
@@ -428,7 +371,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
     $('#planBox').innerHTML = c.length
       ? `<span class="basis">${esc(c[0].basis || '계획')}</span><span>${esc(uniq(c.filter(r => r.kind === '수량').map(r => r.product + (r.lot ? ' · ' + r.lot : ''))).join(' / ') || uniq(c.map(r => r.task || r.product)).join(' / '))}</span><span class="help">계획ID ${esc(c[0].id)} · ${c.length}단계</span>`
       : `<span class="empty">이 일자 · Shift · 라인에는 등록된 계획이 없습니다. 아래에서 작업 구성을 직접 고르세요.</span>`;
-    buildSlots(); renderCrew();
+    buildSlots();
   }
 
   // ── 작업 구성: 생산1 · 청소 · 세팅 · 생산2(+ 생산3…) 중 고른 개수만큼 가중치 = 1 ÷ 개수
@@ -638,7 +581,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
     $('#secPh').hidden = t !== 'ph';
     $('.top .who').style.visibility = t !== 'in' ? 'hidden' : '';
     if (t !== 'in') {
-      ['#secWho', '#form', '#bar', '#secDone', '#loadMsg', '#demoNote', '#secCrew'].forEach(s => { $(s).hidden = true; });
+      ['#secWho', '#form', '#bar', '#secDone', '#loadMsg', '#demoNote'].forEach(s => { $(s).hidden = true; });
       if (t === 'stat') loadStat(); else loadPh(true);
     } else {
       $('#demoNote').hidden = !!CFG.API || !D;
