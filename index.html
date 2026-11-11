@@ -168,6 +168,15 @@ dialog.pv[open]{display:flex;flex-direction:column}
 .pvi>div{display:grid;grid-template-columns:64px 1fr;gap:8px;font-size:13.5px}
 .pvi>div span{color:var(--sub);font-weight:600;font-size:12.5px}
 .pvi .memo{white-space:pre-wrap;font-weight:600}
+/* 제출한 실적 수정(11/12) */
+.btn.sub{background:var(--card);color:var(--navy);border:2px solid var(--navy)}
+.editbar{border:2px solid var(--navy)}
+.editbar h2 b{color:var(--navy)}
+.chip:disabled{cursor:default}
+.chip:disabled:not([aria-pressed="true"]){opacity:.35}
+input:disabled{opacity:.6}
+.thumbs figure.old span{position:absolute;left:4px;bottom:4px;background:rgba(15,20,28,.72);color:#fff;border-radius:6px;padding:0 6px;font-size:11px;font-weight:700}
+#subNote{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -216,6 +225,13 @@ dialog.pv[open]{display:flex;flex-direction:column}
 
   <form id="form" novalidate>
     <div class="wrap">
+      <!-- 제출한 실적 수정(11/12): 같은 일자 · Shift · 설비를 다시 제출해 마지막 제출로 대체 -->
+      <section class="card editbar" id="secEdit" hidden>
+        <h2><b>✎ 제출한 실적 수정</b><span id="edWhen"></span></h2>
+        <p class="help" id="edInfo" style="margin:0"></p>
+        <label class="f"><span class="lbl">수정 사유 <small>필수 — 무엇을 왜 고쳤는지</small></span><input id="inEditWhy" maxlength="200" placeholder="예: 실적량 오입력 9,000 → 9,800 / 제조번호 잘못 선택"></label>
+        <button type="button" class="pick" id="edCancel">수정 취소</button>
+      </section>
       <!-- 1. 일자 · Shift · 라인 -->
       <section class="card">
         <h2><b><span class="no">1</span>일자 · Shift · 설비</b></h2>
@@ -225,6 +241,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
         </div>
         <div class="f"><span class="lbl">설비</span><div class="chips" id="lineChips"></div></div>
         <div class="plan" id="planBox"></div>
+        <div class="msg ok" id="subNote" hidden></div>
         <div class="wk"><span class="help" id="syncTxt">계획 불러오는 중</span><button type="button" class="pick" id="syncBtn">계획 새로고침</button></div>
         <div class="msg ok" id="syncNote" hidden></div>
       </section>
@@ -259,10 +276,11 @@ dialog.pv[open]{display:flex;flex-direction:column}
   </form>
 
   <section class="card done" id="secDone" hidden>
-    <h2 style="justify-content:center"><b>제출했습니다</b></h2>
+    <h2 style="justify-content:center"><b id="doneTitle">제출했습니다</b></h2>
     <div class="big" id="doneRate">—</div>
     <div id="doneText" class="help"></div>
     <button class="btn" id="again" type="button">다음 실적 입력</button>
+    <button class="btn sub" id="editLast" type="button">방금 제출한 실적 수정</button>
   </section>
 
 </div>
@@ -286,7 +304,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
   let D = null;                       // { plan, lines, shifts, reasons, progress }
   let who = store.get('pk_who') || null;
   let tab = location.hash === '#status' ? 'stat' : location.hash === '#photos' ? 'ph' : 'in';
-  const S = { date: '', shift: '', line: '', slots: [], by: {}, sel: new Set(), stages: [], progress: '', reasons: new Set(), photos: [], uid: 0 };
+  const S = { date: '', shift: '', line: '', slots: [], by: {}, sel: new Set(), stages: [], progress: '', reasons: new Set(), photos: [], uid: 0, edit: null, keep: [], last: null };
 
   // ── 데이터 불러오기(팀 PIN이 맞으면 작업자 명단도 받음) — 시트를 매번 새로 읽으므로 시트 수정이 바로 반영됨
   async function fetchData() {
@@ -318,13 +336,13 @@ dialog.pv[open]{display:flex;flex-direction:column}
     renderWho(); renderTop(); pickLine(firstLine()); renderRef();
   }
   function stamp() { const d = new Date(); $('#syncTxt').textContent = `시트 계획 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')} 기준 · 1분마다 자동 확인`; }
-  const busy = () => S.stages.some(x => x.actual !== '') || S.photos.length > 0;
+  const busy = () => !!S.edit || S.stages.some(x => x.actual !== '') || S.photos.length > 0;
   async function refreshPlan(manual) {
     if (!who || !D) return;
     let d; try { d = await fetchData(); } catch (e) { if (manual) show($('#syncNote'), 'err', '계획을 다시 불러오지 못했습니다: ' + e.message); return; }
     if (d.pinOk === false) return;
     const before = JSON.stringify(cellRows()); const changed = JSON.stringify(D.plan) !== JSON.stringify(d.plan) || JSON.stringify(D.workers) !== JSON.stringify(d.workers) || JSON.stringify(D.lines) !== JSON.stringify(d.lines);
-    D = d; D.workers = D.workers || []; stamp();
+    D = d; D.workers = D.workers || []; stamp(); renderSubNote();
     if (!changed) { if (manual) show($('#syncNote'), 'ok', '시트와 같습니다. 바뀐 계획이 없습니다.'); return; }
     renderTop(); renderRef();
     const cellChanged = JSON.stringify(cellRows()) !== before;
@@ -359,19 +377,19 @@ dialog.pv[open]{display:flex;flex-direction:column}
   const hasPlan = (line, shift) => D.plan.some(r => r.date === S.date && r.shift === (shift || S.shift) && r.line === line);
   const firstLine = () => (store.get('pk_line') && D.lines.includes(store.get('pk_line'))) ? store.get('pk_line') : (D.lines.find(l => hasPlan(l)) || D.lines[0]);
   function renderTop() {
-    $('#shiftChips').innerHTML = D.shifts.map(s => `<button type="button" class="chip" aria-pressed="${s === S.shift}" data-s="${s}">${s}</button>`).join('');
-    $('#lineChips').innerHTML = D.lines.map(l => `<button type="button" class="chip ${hasPlan(l) ? '' : 'dim'}" aria-pressed="${l === S.line}" data-l="${l}">${l}${hasPlan(l) ? '' : '<small>계획 없음</small>'}</button>`).join('');
+    $('#shiftChips').innerHTML = D.shifts.map(s => `<button type="button" class="chip" aria-pressed="${s === S.shift}" data-s="${s}"${S.edit ? ' disabled' : ''}>${s}</button>`).join('');
+    $('#lineChips').innerHTML = D.lines.map(l => `<button type="button" class="chip ${hasPlan(l) ? '' : 'dim'}" aria-pressed="${l === S.line}" data-l="${l}"${S.edit ? ' disabled' : ''}>${l}${hasPlan(l) ? '' : '<small>계획 없음</small>'}</button>`).join('');
   }
-  $('#shiftChips').onclick = e => { const b = e.target.closest('[data-s]'); if (!b) return; S.shift = b.dataset.s; renderTop(); pickLine(S.line); };
-  $('#lineChips').onclick = e => { const b = e.target.closest('[data-l]'); if (!b) return; pickLine(b.dataset.l); };
-  $('#inDate').onchange = e => { S.date = e.target.value; renderTop(); pickLine(S.line); };
+  $('#shiftChips').onclick = e => { const b = e.target.closest('[data-s]'); if (!b || S.edit) return; S.shift = b.dataset.s; renderTop(); pickLine(S.line); };
+  $('#lineChips').onclick = e => { const b = e.target.closest('[data-l]'); if (!b || S.edit) return; pickLine(b.dataset.l); };
+  $('#inDate').onchange = e => { if (S.edit) { e.target.value = S.date; return; } S.date = e.target.value; renderTop(); pickLine(S.line); };
   function pickLine(l) {
     S.line = l; store.set('pk_line', l); renderTop();
     const c = cellRows();
     $('#planBox').innerHTML = c.length
       ? `<span class="basis">${esc(c[0].basis || '계획')}</span><span>${esc(uniq(c.filter(r => r.kind === '수량').map(r => r.product + (r.lot ? ' · ' + r.lot : ''))).join(' / ') || uniq(c.map(r => r.task || r.product)).join(' / '))}</span><span class="help">계획ID ${esc(c[0].id)} · ${c.length}단계</span>`
       : `<span class="empty">이 일자 · Shift · 라인에는 등록된 계획이 없습니다. 아래에서 작업 구성을 직접 고르세요.</span>`;
-    buildSlots();
+    buildSlots(); renderSubNote();
   }
 
   // ── 작업 구성: 생산1 · 청소 · 세팅 · 생산2(+ 생산3…) 중 고른 개수만큼 가중치 = 1 ÷ 개수
@@ -510,7 +528,9 @@ dialog.pv[open]{display:flex;flex-direction:column}
     e.target.value = ''; renderThumbs();
   };
   function renderThumbs() {
-    $('#thumbs').innerHTML = S.photos.map(p => `<figure><img src="${p.data}" alt="첨부 사진"><button type="button" data-ph="${p.uid}" aria-label="사진 삭제">×</button></figure>`).join('');
+    const old = (S.edit ? S.keep : []).map(u => { const m = String(u).match(/[?&]id=([\w-]+)/) || String(u).match(/\/d\/([\w-]+)/);
+      return m ? `<figure class="old"><img src="https://drive.google.com/thumbnail?id=${m[1]}&sz=w200" alt="기존 사진" referrerpolicy="no-referrer"><span>기존</span></figure>` : ''; }).join('');
+    $('#thumbs').innerHTML = old + S.photos.map(p => `<figure><img src="${p.data}" alt="첨부 사진"><button type="button" data-ph="${p.uid}" aria-label="사진 삭제">×</button></figure>`).join('');
   }
   $('#thumbs').onclick = e => { const b = e.target.closest('[data-ph]'); if (!b) return; S.photos = S.photos.filter(p => p.uid !== Number(b.dataset.ph)); renderThumbs(); };
   function shrink(file) {   // 긴 변 1280px · JPEG 0.8로 줄여 올림
@@ -535,25 +555,35 @@ dialog.pv[open]{display:flex;flex-direction:column}
       photos: S.photos.map(p => ({ mime: 'image/jpeg', data: p.data.split(',')[1] })),
       stages: S.stages.map((s, i) => ({ step: i + 1, workers: s.workers.slice(), kind: s.kind === '생산' ? '수량' : '작업', code: s.code, product: s.kind === '생산' ? s.product : (c[0] ? c[0].product : ''),
         lot: s.kind === '생산' ? s.lot : '', task: s.kind === '생산' ? '' : s.name, target: Number(s.target || 0), actual: Number(s.actual || 0), done: !!s.done,
-        offPlan: s.kind === '생산' && !s.planned })) };
+        offPlan: s.kind === '생산' && !s.planned })),
+      // 수정(11/12): 대체할 제출ID와 사유, 기존 사진 링크(다시 올리지 않음) — Apps Script v6에서 시트 「수정대상ID · 수정사유」 열에 남김
+      edit: S.edit ? { sid: S.edit.sid, why: $('#inEditWhy').value.trim() } : null, keep: S.edit ? S.keep.slice() : [] };
     const btn = $('#submit'); btn.disabled = true; btn.textContent = '보내는 중…';
     try {
       let res = { ok: true, rate: S.total, demo: true };
+      if (S.edit && CFG.API) {   // 그사이 다른 휴대폰에서 같은 칸을 먼저 고쳤으면 덮어쓰지 않음
+        const c = await fetchCell(S.edit.date, S.edit.shift, S.edit.line);
+        if (c && c.sid !== S.edit.sid) throw Object.assign(new Error(`다른 휴대폰에서 ${c.rows[0].at}에 이 칸을 먼저 수정했습니다. 내용을 덮어쓰지 않았습니다 — [수정 취소] 후 다시 불러와 고치세요.`), { stale: true });
+      }
       if (CFG.API) {
         const r = await fetch(CFG.API, { method: 'POST', body: JSON.stringify(payload) });
         res = await r.json();
       }
-      if (!res.ok) throw new Error(res.error || '저장하지 못했습니다');
+      if (!res.ok) throw Object.assign(new Error(res.error || '저장하지 못했습니다'), { stale: res.code === 'stale' });
       $('#doneRate').textContent = pct(res.rate);
+      const wasEdit = !!S.edit;
+      S.last = { date: S.date, shift: S.shift, line: S.line };
+      $('#doneTitle').textContent = wasEdit ? '수정했습니다' : '제출했습니다';
       const fin = S.stages.filter(s => s.kind === '생산' && s.done).map(s => s.lot || s.product);
-      $('#doneText').textContent = `${S.date} ${S.shift} · ${S.line} · ${S.progress} · 사진 ${S.photos.length}장` + (fin.length ? ` · 포장완료 배치 ${fin.join(', ')}` : '') + (res.demo ? ' — 견본이라 저장하지 않았습니다' : ' — 실적집계표에 저장했습니다');
-      S.doneShown = true; ST.data = null; refreshPlan(false);
+      $('#doneText').textContent = (wasEdit ? '이전 제출 대신 이 내용으로 집계합니다 · ' : '') + `${S.date} ${S.shift} · ${S.line} · ${S.progress} · 사진 ${wasEdit ? '추가 ' : ''}${S.photos.length}장` + (fin.length ? ` · 포장완료 배치 ${fin.join(', ')}` : '') + (res.demo ? ' — 견본이라 저장하지 않았습니다' : ' — 실적집계표에 저장했습니다');
+      endEdit(); S.doneShown = true; ST.data = null; refreshPlan(false);
       $('#form').hidden = true; $('#bar').hidden = true; $('#secDone').hidden = false; window.scrollTo(0, 0);
     } catch (e) {
-      show(m, 'err', '제출하지 못했습니다: ' + e.message + ' — 입력 내용은 그대로 있습니다. 잠시 후 다시 제출하세요.');
-    } finally { btn.disabled = false; btn.textContent = '제출'; }
+      show(m, 'err', e.stale ? e.message : '제출하지 못했습니다: ' + e.message + ' — 입력 내용은 그대로 있습니다. 잠시 후 다시 제출하세요.');
+    } finally { btn.disabled = false; btn.textContent = S.edit ? '수정 제출' : '제출'; }
   };
   function check() {
+    if (S.edit && !$('#inEditWhy').value.trim()) return '수정 사유를 적어 주세요(무엇을 왜 고쳤는지). 맨 위 「제출한 실적 수정」 칸에 적습니다.';
     if (!S.stages.length) return '작업 구성(생산1 · 청소 · 세팅 · 생산2)을 하나 이상 고르세요.';
     for (const [i, s] of S.stages.entries()) {
       if (!s.workers.length) return `${s.slot}의 작업자를 고르세요(품목 · 단계마다 누가 했는지 남깁니다).`;
@@ -565,6 +595,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
     return '';
   }
   $('#again').onclick = () => {
+    endEdit();
     S.progress = ''; S.reasons = new Set(); S.photos = []; $('#inMemo').value = ''; renderThumbs(); renderRef();
     S.doneShown = false;
     // 다음 실적은 새로 입력(리셋): 앞 제출의 작업자 · 작업 구성 · 실적량을 넘기지 않음(사용자 11/10)
@@ -739,7 +770,7 @@ dialog.pv[open]{display:flex;flex-direction:column}
       const subs = Object.values(g.subs).sort((a, b) => (a[0].at + a[0].sid).localeCompare(b[0].at + b[0].sid));
       const last = subs[subs.length - 1].sort((a, b) => a.step - b.step);
       return Object.assign(g, { rows: last, n: subs.length, at: last[0].at, rate: last[0].rate, progress: last[0].progress,
-        reasons: last[0].reasons, memo: last[0].memo, workers: uniq(last.flatMap(r => String(r.workers || '').split(/\s*,\s*/)).filter(Boolean)) });
+        reasons: last[0].reasons, memo: last[0].memo, editWhy: last[0].editWhy || '', workers: uniq(last.flatMap(r => String(r.workers || '').split(/\s*,\s*/)).filter(Boolean)) });
     });
   }
   const shOrd = s => (s === '야간' ? 1 : 0);
@@ -783,9 +814,10 @@ dialog.pv[open]{display:flex;flex-direction:column}
       <div class="pvi">
         <div><span>진도율</span><b>${esc(g.progress || '—')}${g.rate ? ' · 일정 달성률 ' + pc0(g.rate) : ''}</b></div>
         <div><span>사유유형</span><b>${esc(g.reasons || '—')}</b></div>
-        ${pinOk ? `<div><span>메모</span><b class="memo">${esc(g.memo || '—')}</b></div><div><span>작업자</span><b>${wk || '—'}</b></div>`
+        ${pinOk ? `<div><span>메모</span><b class="memo">${esc(g.memo || '—')}</b></div><div><span>작업자</span><b>${wk || '—'}</b></div>${g.editWhy ? `<div><span>수정 사유</span><b>${esc(g.editWhy)}</b></div>` : ''}`
                 : '<p class="help">작업자와 메모는 「실적 입력」 탭에서 팀 PIN을 등록한 휴대폰에서 보입니다.</p>'}
         <table class="dt"><thead><tr><th>품목 · 작업</th><th>제조번호</th><th>목표</th><th>실적</th></tr></thead><tbody>${rows}</tbody></table>
+        ${pinOk ? `<button type="button" class="btn sub" data-ed="${esc(g.date)}|${esc(g.shift)}|${esc(g.line)}">이 실적 수정</button>` : ''}
         <p class="help">제출 ${esc(g.at)}${g.n > 1 ? ` · ${g.n}번 제출 — 마지막 제출 기준(사진은 모두 표시)` : ''}${g.photos.length ? ' · 사진을 누르면 원본(구글 드라이브)이 열립니다' : ''}</p>
       </div>`;
     const dl = $('#phDlg');
@@ -804,6 +836,99 @@ dialog.pv[open]{display:flex;flex-direction:column}
   $('#phSync').onclick = () => loadPh(true);
   setInterval(() => { if (tab === 'ph' && document.visibilityState === 'visible' && !$('#phDlg').open) loadPh(); }, 60000);
   document.addEventListener('visibilitychange', () => { if (tab === 'ph' && document.visibilityState === 'visible') loadPh(); });
+
+  // ── 제출한 실적 수정(11/12)
+  //    같은 일자 · Shift · 설비를 다시 제출하면 마지막 제출만 집계(실적현황 · 작업일보 · 대시보드 공통) — 시트에는 이전 제출이 이력으로 남음
+  //    일자 · Shift · 설비는 바꿀 수 없음(바꾸면 잘못 낸 칸이 그대로 남음) · 수정 사유 필수 · 사진은 기존 사진 유지 + 추가만
+  const submitted = () => !!D && (D.done || []).some(o => o.date === S.date && o.shift === S.shift && o.line === S.line);
+  function renderSubNote() {
+    const el = $('#subNote'); if (!el) return;
+    if (S.edit || !submitted()) { el.hidden = true; return; }
+    el.hidden = false;
+    el.innerHTML = '<span>이 일자 · Shift · 설비는 이미 실적이 제출됐습니다. 고칠 내용이 있으면 새로 입력하지 말고 불러와서 수정하세요.</span><button type="button" class="pick" id="subEdit">불러와서 수정</button>';
+  }
+  async function fetchCell(date, shift, line) {
+    const r = await fetch(`${CFG.API}?action=summary&from=${date}&to=${date}&pin=${encodeURIComponent(who.pin)}&t=${Date.now()}`, { cache: 'no-store' });
+    const d = await r.json(); if (!d.ok) throw new Error(d.error || '불러오기 실패');
+    const rows = (d.actual || []).filter(x => x.date === date && x.shift === shift && x.line === line)
+      .sort((a, b) => (a.at + a.sid).localeCompare(b.at + b.sid));
+    if (!rows.length) return null;
+    const sid = rows[rows.length - 1].sid;
+    return { sid, n: new Set(rows.map(x => x.sid)).size, photos: uniq(rows.flatMap(x => x.photos)),
+             rows: rows.filter(x => x.sid === sid).sort((a, b) => a.step - b.step) };
+  }
+  async function startEdit(date, shift, line) {
+    const fm = $('#formMsg');
+    if (!CFG.API) { show(fm, 'err', '견본 화면에서는 수정할 수 없습니다.'); return; }
+    if (!who) { renderWho(); return; }
+    if (!D) await load();
+    if (!D) return;
+    const lm = $('#loadMsg'); show(lm, 'ok', '제출한 실적을 불러오는 중…');
+    let c; try { c = await fetchCell(date, shift, line); } catch (e) { show(lm, 'err', '제출한 실적을 불러오지 못했습니다: ' + e.message); return; }
+    if (!c) { show(lm, 'err', `${md(date)} ${shift} · ${line}에는 제출된 실적이 없습니다.`); return; }
+    lm.hidden = true; fm.hidden = true;
+    S.edit = { sid: c.sid, at: c.rows[0].at, n: c.n, date, shift, line };
+    S.date = date; S.shift = shift; $('#inDate').value = date;
+    S.doneShown = false; $('#secDone').hidden = true; $('#form').hidden = false; $('#bar').hidden = false;
+    pickLine(line);                       // 계획 표시 — 작업 구성은 아래에서 제출 내용으로 바꿈
+    S.slots = []; S.by = {}; S.sel = new Set();
+    let pn = 0;
+    c.rows.forEach(r => {
+      let st;
+      if (r.kind === '수량') {
+        const k = '생산' + (++pn);
+        const pr = D.plan.find(p => p.kind === '수량' && p.line === line && p.lot === r.lot && p.product === r.product && p.date === date && p.shift === shift)
+                || D.plan.find(p => p.kind === '수량' && p.line === line && p.lot === r.lot && p.product === r.product);
+        st = pr ? fromPlan(pr, k) : mk('생산', { slot: k, manual: true, product: r.product, lot: r.lot });
+        Object.assign(st, { target: r.target ? String(r.target) : '', actual: String(r.actual), done: !!r.done,
+          planned: !!pr && pr.date === date && pr.shift === shift && pr.line === line });
+      } else {
+        const nm = r.task || '작업';
+        let k = /청소/.test(nm) && !S.by['청소'] ? '청소' : /세팅/.test(nm) && !S.by['세팅'] ? '세팅' : nm;
+        while (S.by[k]) k += ' ';
+        st = (k === '청소' || k === '세팅') ? mk(k, { slot: k, name: nm }) : mk('작업', { slot: k, name: nm });
+        st.done = !!r.done;
+      }
+      st.workers = String(r.workers || '').split(/\s*,\s*/).filter(Boolean);
+      S.slots.push(st.slot); S.by[st.slot] = st; S.sel.add(st.slot);
+    });
+    ['생산1', '청소', '세팅', '생산2'].forEach(k => { if (!S.by[k]) { S.slots.push(k); S.by[k] = k.startsWith('생산') ? mk('생산', { slot: k }) : mk(k, { slot: k }); } });
+    S.reasons = new Set(String(c.rows[0].reasons || '').split(/\s*,\s*/).filter(Boolean));
+    $('#inMemo').value = c.rows[0].memo || '';
+    $('#inEditWhy').value = '';
+    S.photos = []; S.keep = c.photos;
+    syncStages(); renderRef(); renderThumbs(); renderEdit();
+    if (S.stages.some(s => !s.workers.length)) show(fm, 'err', '작업자를 불러오지 못한 단계가 있습니다 — 단계마다 작업자를 다시 고르세요.');
+    window.scrollTo(0, 0);
+  }
+  function renderEdit() {
+    const e = S.edit;
+    $('#secEdit').hidden = !e;
+    $('#inDate').disabled = !!e;
+    $('#submit').textContent = e ? '수정 제출' : '제출';
+    if (e) {
+      $('#edWhen').textContent = e.n > 1 ? `${e.n}번 제출된 칸` : '';
+      $('#edInfo').innerHTML = `<b>${md(e.date)}(${dow(e.date)}) ${esc(e.shift)} · ${esc(e.line)}</b> — ${esc(e.at)}에 마지막으로 제출한 내용을 불러왔습니다. 고친 뒤 <b>수정 제출</b>을 누르면 이 내용으로 집계되고, 이전 제출은 시트에 이력으로 남습니다. 일자 · Shift · 설비는 바꿀 수 없습니다(잘못 고른 경우 팀장 · 기사에게 알려 주세요). 사진은 지울 수 없고 추가만 됩니다.`;
+    }
+    if (D) renderTop();
+    renderSubNote();
+  }
+  function endEdit() { S.edit = null; S.keep = []; renderEdit(); }
+  $('#edCancel').onclick = () => {
+    endEdit(); $('#formMsg').hidden = true;
+    S.stages = []; S.by = {}; S.sel = new Set(); S.reasons = new Set(); S.photos = []; $('#inMemo').value = '';
+    renderThumbs(); renderRef(); pickLine(S.line); window.scrollTo(0, 0);
+  };
+  $('#subNote').onclick = e => { if (e.target.closest('#subEdit')) startEdit(S.date, S.shift, S.line); };
+  $('#editLast').onclick = () => { if (S.last) startEdit(S.last.date, S.last.shift, S.last.line); };
+  $('#pvBody').addEventListener('click', e => {
+    const b = e.target.closest('[data-ed]'); if (!b) return;
+    const [d, s, l] = b.dataset.ed.split('|');
+    const go = async () => { if (!D) await load(); setTab('in'); startEdit(d, s, l); };
+    // 상세 창을 닫으면 history.back()이 뒤따름 — 그 뒤에 탭을 바꿔야 주소가 #photos로 되돌아가지 않음
+    if (history.state && history.state.pv) window.addEventListener('popstate', () => setTimeout(go, 0), { once: true }); else setTimeout(go, 0);
+    closePv();
+  });
 
   function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function uniq(a) { return [...new Set(a)]; }
