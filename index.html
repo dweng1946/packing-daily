@@ -153,6 +153,36 @@ textarea{min-height:64px;resize:vertical}
 .sx{display:inline-block;border-radius:6px;padding:1px 6px;font-size:11.5px;font-weight:700;margin:1px 2px 1px 0;background:var(--soft);color:var(--sub)}
 .sx.g{background:var(--good-soft);color:var(--good)}.sx.n{background:var(--accent-soft);color:var(--accent)}.sx.b{background:var(--bad-soft);color:var(--bad)}
 .rsn{font-size:12.5px;color:var(--sub)}
+.tabs{grid-template-columns:repeat(3,1fr)}
+/* 작업일보(전 작업 특이사항 사진) */
+.gal{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.gc{border:1px solid var(--line);border-radius:12px;background:var(--card);overflow:hidden;padding:0;text-align:left;font:inherit;color:inherit;cursor:pointer;display:flex;flex-direction:column;min-width:0}
+.gc:active{transform:scale(.98)}
+.gc .ph{position:relative;aspect-ratio:3/4;background:var(--soft);display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:12.5px}
+.gc .ph img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:block}
+.gc .cnt{position:absolute;right:6px;bottom:6px;background:rgba(15,20,28,.72);color:#fff;border-radius:8px;padding:1px 7px;font-size:11.5px;font-weight:700}
+.gc .sh{position:absolute;left:6px;top:6px;background:var(--navy);color:var(--navy-ink);border-radius:7px;padding:1px 7px;font-size:11.5px;font-weight:800;max-width:calc(100% - 12px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.gc .sh.nt{background:#3B3F6B;color:#fff}
+.gc .tx{padding:7px 9px 9px;display:flex;flex-direction:column;gap:3px;font-size:12px;min-width:0}
+.gc .tx b{font-size:13.5px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc .tx .lt{color:var(--sub);font-variant-numeric:tabular-nums;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.gc .tx i{font-style:normal}
+.gc .tx .r{color:var(--sub);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+#phLines{flex-wrap:nowrap;overflow-x:auto;padding-bottom:2px;scrollbar-width:none}
+#phLines .chip{flex:none;min-height:38px;padding:7px 12px;font-size:13.5px}
+.pick:disabled{opacity:.35}
+dialog.pv{border:0;padding:0;margin:0 auto;width:100%;max-width:640px;height:100dvh;max-height:100dvh;background:var(--bg);color:var(--ink)}
+dialog.pv::backdrop{background:rgba(10,14,20,.6)}
+dialog.pv[open]{display:flex;flex-direction:column}
+.pvh{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px;border-bottom:1px solid var(--line);background:var(--card)}
+.pvh b{font-size:16px;letter-spacing:-.3px}
+.pvb{flex:1;overflow-y:auto;padding:12px 14px calc(24px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:10px}
+.pimg{display:block;border-radius:12px;overflow:hidden;background:var(--soft);min-height:120px}
+.pimg img{display:block;width:100%;height:auto}
+.pvi{background:var(--card);border:2px solid var(--frame);border-radius:14px;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.pvi>div{display:grid;grid-template-columns:64px 1fr;gap:8px;font-size:13.5px}
+.pvi>div span{color:var(--sub);font-weight:600;font-size:12.5px}
+.pvi .memo{white-space:pre-wrap;font-weight:600}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 </style>
 </head>
@@ -165,6 +195,7 @@ textarea{min-height:64px;resize:vertical}
   <nav class="tabs" role="tablist">
     <button type="button" role="tab" data-t="in" aria-selected="true">실적 입력</button>
     <button type="button" role="tab" data-t="stat" aria-selected="false">실적현황</button>
+    <button type="button" role="tab" data-t="ph" aria-selected="false">작업일보</button>
   </nav>
 
   <!-- 실적현황: PIN 없이 누구나(작업자 이름 · 메모는 표시하지 않음) -->
@@ -176,6 +207,17 @@ textarea{min-height:64px;resize:vertical}
     <div id="stBody" class="wrap"></div>
     <p class="help" style="margin:0 2px">실적 = 생산(수량) 단계 실적량 합(EA). 같은 일자 · Shift · 라인을 다시 제출하면 마지막 제출만 집계합니다. 누계 % = 누계 실적 ÷ 오늘까지 계획(오늘은 보고된 Shift만). 작업자 이름과 메모는 표시하지 않습니다.</p>
   </div>
+  <!-- 작업일보(11/11): 전 작업 특이사항(일보 캡쳐 사진)을 다음 작업자가 보고 대응 -->
+  <div id="secPh" class="wrap" hidden>
+    <section class="card">
+      <div class="wnav"><button type="button" class="pick" id="phPrev" aria-label="이전 날">◀</button><b id="phDay">—</b><button type="button" class="pick" id="phNext" aria-label="다음 날">▶</button></div>
+      <div class="chips" id="phLines"></div>
+      <div class="wk" style="justify-content:space-between"><span class="help" id="phTime">불러오는 중</span><button type="button" class="pick" id="phSync">새로고침</button></div>
+    </section>
+    <div id="phBody" class="wrap"></div>
+    <p class="help" style="margin:0 2px">최근 3일 · 최신 Shift가 위. 사진을 누르면 세부 내용(품목 · 제조번호 · 목표/실적 · 진도율 · 사유)이 열립니다. 작업자와 메모는 팀 PIN을 등록한 휴대폰에서만 보입니다.</p>
+  </div>
+  <dialog id="phDlg" class="pv" aria-labelledby="pvTitle"><div class="pvh"><b id="pvTitle"></b><button type="button" class="pick" id="pvClose">닫기</button></div><div id="pvBody" class="pvb"></div></dialog>
   <div class="demo" id="demoNote" hidden>견본 화면입니다 — 제출해도 저장되지 않습니다(시트 연결 전). 작업자 명단도 견본입니다.</div>
   <div id="loadMsg" class="msg" hidden></div>
 
@@ -265,7 +307,7 @@ textarea{min-height:64px;resize:vertical}
 
   let D = null;                       // { plan, lines, shifts, reasons, progress }
   let who = store.get('pk_who') || null;
-  let tab = location.hash === '#status' ? 'stat' : 'in';
+  let tab = location.hash === '#status' ? 'stat' : location.hash === '#photos' ? 'ph' : 'in';
   const S = { date: '', shift: '', line: '', slots: [], by: {}, sel: new Set(), stages: [], progress: '', reasons: new Set(), photos: [], uid: 0 };
 
   // ── 데이터 불러오기(팀 PIN이 맞으면 작업자 명단도 받음) — 시트를 매번 새로 읽으므로 시트 수정이 바로 반영됨
@@ -590,13 +632,14 @@ textarea{min-height:64px;resize:vertical}
   // ── 탭: 실적 입력 / 실적현황(#status 링크로 바로 열림, PIN 없이 누구나)
   function setTab(t) {
     tab = t;
-    try { history.replaceState(null, '', t === 'stat' ? '#status' : location.pathname + location.search); } catch (e) {}
+    try { history.replaceState(null, '', t === 'stat' ? '#status' : t === 'ph' ? '#photos' : location.pathname + location.search); } catch (e) {}
     document.querySelectorAll('.tabs [data-t]').forEach(b => b.setAttribute('aria-selected', String(b.dataset.t === t)));
     $('#secStat').hidden = t !== 'stat';
-    $('.top .who').style.visibility = t === 'stat' ? 'hidden' : '';
-    if (t === 'stat') {
+    $('#secPh').hidden = t !== 'ph';
+    $('.top .who').style.visibility = t !== 'in' ? 'hidden' : '';
+    if (t !== 'in') {
       ['#secWho', '#form', '#bar', '#secDone', '#loadMsg', '#demoNote', '#secCrew'].forEach(s => { $(s).hidden = true; });
-      loadStat();
+      if (t === 'stat') loadStat(); else loadPh(true);
     } else {
       $('#demoNote').hidden = !!CFG.API || !D;
       renderWho();
@@ -712,9 +755,116 @@ textarea{min-height:64px;resize:vertical}
     $('#stBody').innerHTML = h;
   }
 
+  // ── 작업일보(11/11): 전 작업 특이사항(일보 캡쳐 사진)을 다음 작업자가 보고 대응 — 최근 3일, 라인별, 최신 Shift가 위
+  //    사진은 드라이브(링크 보기 공유) 미리보기로 표시, 작업자 이름 · 메모는 팀 PIN을 등록한 휴대폰에서만
+  const PH = { end: '', line: store.get('pk_phline') || '전체', data: null, sig: '', items: [] };
+  const PH_DAYS = 3;
+  const fid = u => { const m = String(u).match(/[?&]id=([\w-]+)/) || String(u).match(/\/d\/([\w-]+)/); return m ? m[1] : ''; };
+  const pimg = (id, w, cls) => `<img${cls ? ` class="${cls}"` : ''} src="https://drive.google.com/thumbnail?id=${id}&sz=w${w}" alt="작업일보 사진" decoding="async" referrerpolicy="no-referrer" onerror="this.onerror=null;this.src='https://lh3.googleusercontent.com/d/${id}=w${w}'">`;
+  async function loadPh(force) {
+    if (!PH.end) PH.end = today();
+    const to = PH.end, from = addDays(to, -(PH_DAYS - 1));
+    $('#phDay').textContent = `${md(from)}(${dow(from)}) ~ ${md(to)}(${dow(to)})`;
+    $('#phNext').disabled = to >= today();
+    if (!PH.data || PH.data.to !== to) $('#phBody').innerHTML = '<p class="empty">불러오는 중…</p>';
+    try {
+      let d;
+      if (CFG.API) {
+        const pin = who && who.pin ? '&pin=' + encodeURIComponent(who.pin) : '';
+        const r = await fetch(`${CFG.API}?action=summary&from=${from}&to=${to}${pin}&t=${Date.now()}`, { cache: 'no-store' });
+        d = await r.json(); if (!d.ok) throw new Error(d.error || '불러오기 실패');
+      } else {
+        d = await (await fetch('data/demo_plan.json', { cache: 'no-store' })).json(); d.actual = []; d.pinOk = false;
+      }
+      if (PH.end !== to) return;
+      d.to = to; d.from = from;
+      const sig = JSON.stringify([d.actual, d.pinOk, PH.line]);
+      PH.data = d;
+      if (force || sig !== PH.sig) { PH.sig = sig; renderPh(); }
+      $('#phTime').textContent = `${hhmm(new Date())} 기준 · 1분마다 자동 확인` + (CFG.API ? '' : ' (견본 — 실적 없음)');
+    } catch (e) { $('#phBody').innerHTML = `<div class="msg err">작업일보를 불러오지 못했습니다: ${esc(e.message)}</div>`; }
+  }
+  function phItems(d) {
+    const by = {};
+    (d.actual || []).forEach(r => {
+      const k = r.date + '|' + r.shift + '|' + r.line;
+      const g = by[k] || (by[k] = { k, date: r.date, shift: r.shift, line: r.line, subs: {}, photos: [] });
+      (g.subs[r.sid] = g.subs[r.sid] || []).push(r);
+      r.photos.forEach(u => { if (!g.photos.includes(u)) g.photos.push(u); });   // 다시 제출해도 앞서 올린 사진은 남김
+    });
+    return Object.values(by).map(g => {
+      const subs = Object.values(g.subs).sort((a, b) => (a[0].at + a[0].sid).localeCompare(b[0].at + b[0].sid));
+      const last = subs[subs.length - 1].sort((a, b) => a.step - b.step);
+      return Object.assign(g, { rows: last, n: subs.length, at: last[0].at, rate: last[0].rate, progress: last[0].progress,
+        reasons: last[0].reasons, memo: last[0].memo, workers: uniq(last.flatMap(r => String(r.workers || '').split(/\s*,\s*/)).filter(Boolean)) });
+    });
+  }
+  const shOrd = s => (s === '야간' ? 1 : 0);
+  function renderPh() {
+    const d = PH.data; if (!d) return;
+    const lines = uniq([...(d.lines || []), ...(d.actual || []).map(r => r.line)]);
+    if (PH.line !== '전체' && !lines.includes(PH.line)) PH.line = '전체';
+    $('#phLines').innerHTML = ['전체', ...lines].map(l => `<button type="button" class="chip" data-l="${esc(l)}" aria-pressed="${l === PH.line}">${esc(l)}</button>`).join('');
+    const its = phItems(d).filter(g => PH.line === '전체' || g.line === PH.line)
+      .sort((a, b) => b.date.localeCompare(a.date) || shOrd(b.shift) - shOrd(a.shift) || lines.indexOf(a.line) - lines.indexOf(b.line));
+    PH.items = its;
+    if (!its.length) { $('#phBody').innerHTML = `<p class="empty">${PH.line === '전체' ? '' : esc(PH.line) + ' — '}이 기간에 등록된 실적 · 일보 사진이 없습니다.</p>`; return; }
+    const pcl = p => p === '선진행' ? 'g' : p === '정상' ? 'n' : p === '지연' ? 'b' : '';
+    const card = (g, i) => {
+      const q = g.rows.filter(r => r.kind === '수량'), main = q[0] || g.rows[0];
+      const title = main.kind === '수량' ? short(main.product) : (main.task || main.product || '작업');
+      const lots = uniq(q.map(r => r.lot).filter(Boolean));
+      const ph = g.photos.length ? `${pimg(fid(g.photos[0]), 480)}${g.photos.length > 1 ? `<span class="cnt">사진 ${g.photos.length}</span>` : ''}` : '<span>사진 없음</span>';
+      return `<button type="button" class="gc" data-i="${i}">
+        <span class="ph">${ph}<span class="sh ${g.shift === '야간' ? 'nt' : ''}">${esc(PH.line === '전체' ? g.line + ' · ' : '')}${esc(g.shift)}</span></span>
+        <span class="tx"><b>${esc(title)}</b>${lots.length ? `<span class="lt">${esc(lots.join(' · '))}</span>` : ''}
+          <span>${g.progress ? `<i class="sx ${pcl(g.progress)}">${esc(g.progress)}</i>` : ''}${g.rate ? `<i class="sx">${pc0(g.rate)}</i>` : ''}</span>
+          ${g.reasons ? `<span class="r">${esc(g.reasons)}</span>` : ''}</span></button>`;
+    };
+    let h = '', cd = '';
+    its.forEach((g, i) => {
+      if (g.date !== cd) { if (cd) h += '</div></section>'; cd = g.date; h += `<section class="card"><h2><b>${md(g.date)}(${dow(g.date)})${g.date === today() ? ' · 오늘' : ''}</b><span>${its.filter(x => x.date === g.date).length}건</span></h2><div class="gal">`; }
+      h += card(g, i);
+    });
+    $('#phBody').innerHTML = h + '</div></section>';
+  }
+  const short = s => String(s || '').replace(/\s*\(.*?\)\s*/g, ' ').trim();
+  function openPv(g) {
+    const pinOk = PH.data && PH.data.pinOk && CFG.API && who && who.pin;
+    $('#pvTitle').textContent = `${md(g.date)}(${dow(g.date)}) ${g.shift} · ${g.line}`;
+    const rows = g.rows.map(r => `<tr><td>${r.kind === '수량' ? esc(short(r.product)) : esc(r.task || r.product || '작업')}${r.offPlan ? ' <i class="sx">계획외</i>' : ''}</td>
+      <td>${esc(r.lot || '')}</td><td>${r.kind === '수량' ? fmt(r.target) : ''}</td><td>${r.kind === '수량' ? fmt(r.actual) : (r.done ? '완료' : '미완료')}${r.kind === '수량' && r.done ? ' ✓' : ''}</td></tr>`).join('');
+    const wk = g.workers.length ? esc(g.workers.join(', ')) : (pinOk ? '<span class="help">시트 Apps Script v5 배포 후 표시</span>' : '');
+    $('#pvBody').innerHTML = `
+      ${g.photos.length ? g.photos.map(u => { const id = fid(u); return `<a class="pimg" href="https://drive.google.com/file/d/${id}/view" target="_blank" rel="noopener">${pimg(id, 1600)}</a>`; }).join('') : '<p class="empty">올린 사진이 없습니다.</p>'}
+      <div class="pvi">
+        <div><span>진도율</span><b>${esc(g.progress || '—')}${g.rate ? ' · 일정 달성률 ' + pc0(g.rate) : ''}</b></div>
+        <div><span>사유유형</span><b>${esc(g.reasons || '—')}</b></div>
+        ${pinOk ? `<div><span>메모</span><b class="memo">${esc(g.memo || '—')}</b></div><div><span>작업자</span><b>${wk || '—'}</b></div>`
+                : '<p class="help">작업자와 메모는 「실적 입력」 탭에서 팀 PIN을 등록한 휴대폰에서 보입니다.</p>'}
+        <table class="dt"><thead><tr><th>품목 · 작업</th><th>제조번호</th><th>목표</th><th>실적</th></tr></thead><tbody>${rows}</tbody></table>
+        <p class="help">제출 ${esc(g.at)}${g.n > 1 ? ` · ${g.n}번 제출 — 마지막 제출 기준(사진은 모두 표시)` : ''}${g.photos.length ? ' · 사진을 누르면 원본(구글 드라이브)이 열립니다' : ''}</p>
+      </div>`;
+    const dl = $('#phDlg');
+    if (!dl.open) { dl.showModal(); try { history.pushState({ pv: 1 }, ''); } catch (e) {} }
+    $('#pvBody').scrollTop = 0;
+  }
+  function closePv() { const dl = $('#phDlg'); if (dl.open) dl.close(); }
+  $('#phDlg').addEventListener('close', () => { if (history.state && history.state.pv) history.back(); });
+  window.addEventListener('popstate', () => closePv());
+  $('#pvClose').onclick = closePv;
+  $('#phDlg').addEventListener('click', e => { if (e.target === e.currentTarget) closePv(); });
+  $('#phBody').onclick = e => { const b = e.target.closest('.gc'); if (b) openPv(PH.items[Number(b.dataset.i)]); };
+  $('#phLines').onclick = e => { const b = e.target.closest('[data-l]'); if (!b) return; PH.line = b.dataset.l; store.set('pk_phline', PH.line); PH.sig = ''; renderPh(); };
+  $('#phPrev').onclick = () => { PH.end = addDays(PH.end, -1); PH.sig = ''; loadPh(); };
+  $('#phNext').onclick = () => { if (PH.end < today()) { PH.end = addDays(PH.end, 1); PH.sig = ''; loadPh(); } };
+  $('#phSync').onclick = () => loadPh(true);
+  setInterval(() => { if (tab === 'ph' && document.visibilityState === 'visible' && !$('#phDlg').open) loadPh(); }, 60000);
+  document.addEventListener('visibilitychange', () => { if (tab === 'ph' && document.visibilityState === 'visible') loadPh(); });
+
   function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
   function uniq(a) { return [...new Set(a)]; }
-  if (tab === 'stat') setTab('stat');
+  if (tab !== 'in') setTab(tab);
   load();
 })();
 </script>
