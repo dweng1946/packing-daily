@@ -268,7 +268,8 @@ input:disabled{opacity:.6}
         <h2><b><span class="no">4</span>사유 · 사진</b><span>진도율과 관계없이 첨부 가능</span></h2>
         <div class="f"><span class="lbl">사유 유형</span><div class="chips" id="rsChips"></div></div>
         <label class="f"><span class="lbl">메모 <small>선택</small></span><textarea id="inMemo" placeholder="필요할 때만 적습니다"></textarea></label>
-        <label class="file">📷 사유 캡처 · 사진 첨부<input type="file" id="inPhoto" accept="image/*" multiple></label>
+        <label class="file"><span id="phLab">📷 사유 캡처 · 사진 첨부</span><input type="file" id="inPhoto" accept="image/*" multiple></label>
+        <p class="help" id="phEditHelp" style="margin:0" hidden></p>
         <div class="thumbs" id="thumbs"></div>
       </section>
       <!-- 제출된 실적 수정(11/12 사용자: 맨 아래 · 버튼 「수정」 · 작업일 다음날까지) -->
@@ -526,7 +527,9 @@ input:disabled{opacity:.6}
   }
   $('#rsChips').onclick = e => { const b = e.target.closest('[data-r]'); if (!b) return; const r = b.dataset.r; S.reasons.has(r) ? S.reasons.delete(r) : S.reasons.add(r); renderRef(); };
   $('#inPhoto').onchange = async e => {
-    for (const f of [...e.target.files].slice(0, 8 - S.photos.length)) S.photos.push({ uid: ++S.uid, data: await shrink(f) });
+    const room = 8 - S.photos.length, fs = [...e.target.files];
+    if (fs.length > room) show($('#formMsg'), 'err', `사진은 한 번에 8장까지 올릴 수 있습니다 — ${Math.max(room, 0)}장만 추가했습니다.`);
+    for (const f of fs.slice(0, Math.max(room, 0))) S.photos.push({ uid: ++S.uid, data: await shrink(f) });
     e.target.value = ''; renderThumbs();
   };
   function renderThumbs() {
@@ -920,6 +923,10 @@ input:disabled{opacity:.6}
     $('#secEdit').hidden = !e;
     $('#inDate').disabled = !!e;
     $('#submit').textContent = e ? '수정 제출' : '제출';
+    // 수정 중 사진: 기존 사진은 그대로 남고 새 사진만 추가(한 번에 8장까지)
+    $('#phLab').textContent = e ? '📷 사진 추가 첨부' : '📷 사유 캡처 · 사진 첨부';
+    $('#phEditHelp').hidden = !e;
+    if (e) $('#phEditHelp').textContent = (S.keep.length ? `기존 사진 ${S.keep.length}장(「기존」 표시)은 그대로 남습니다. ` : '') + '고친 내용의 일보 캡처 · 사진을 추가로 올릴 수 있습니다(한 번에 8장까지).';
     if (e) {
       $('#edWhen').textContent = e.n > 1 ? `${e.n}번 제출된 칸` : '';
       $('#edInfo').innerHTML = `<b>${md(e.date)}(${dow(e.date)}) ${esc(e.shift)} · ${esc(e.line)}</b> — ${esc(e.at)}에 마지막으로 제출한 내용을 불러왔습니다. 고친 뒤 <b>수정 제출</b>을 누르면 이 내용으로 집계되고, 이전 제출은 시트에 이력으로 남습니다. 일자 · Shift · 설비는 바꿀 수 없습니다(잘못 고른 경우 팀장 · 기사에게 알려 주세요). 사진은 지울 수 없고 추가만 됩니다. 수정은 작업일 다음날까지 가능합니다.`;
