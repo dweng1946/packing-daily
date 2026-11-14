@@ -202,9 +202,17 @@ input[type=date]{min-height:46px}
 input:disabled{opacity:.5}
 /* v3 : 달력 칸 이름 */
 .day .nms{display:flex;flex-direction:column;gap:2px;margin-top:2px;min-width:0}
-.day .nmt{display:block;font-style:normal;font-size:11px;font-weight:700;line-height:1.25;padding:1px 3px 1px 5px;border-radius:4px;border-left:3px solid var(--c);
-  background:color-mix(in srgb,var(--c) 13%,var(--card));color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-.4px}
-.day .nmt.me{font-weight:900;color:var(--brand)}
+.day .nmt{display:block;font-style:normal;font-size:11px;font-weight:700;line-height:1.25;padding:1px 3px 1px 5px;border-left:3px solid var(--c);
+  background:none;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-.4px}
+.day.l-amber .nmt{color:#7A4A00;border-left-color:#B26A00}
+.day.l-red .nmt{color:#7E2A1E;border-left-color:#B5462F}
+:root[data-theme="dark"] .day.l-amber .nmt{color:#F3C47A;border-left-color:#E0A040}
+:root[data-theme="dark"] .day.l-red .nmt{color:#F4A89C;border-left-color:#E07A68}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .day.l-amber .nmt{color:#F3C47A;border-left-color:#E0A040}:root:not([data-theme="light"]) .day.l-red .nmt{color:#F4A89C;border-left-color:#E07A68}}
+.kpi.btnk{cursor:pointer;text-align:left;font:inherit;color:inherit}
+.kpi.btnk span::after{content:' ›';font-weight:800}
+.kpi.btnk:disabled{cursor:default}.kpi.btnk:disabled span::after{content:''}
+.day .nmt.me{font-weight:900;color:var(--brand)!important}
 .day .nmt.pend{outline:1.5px dashed var(--warn);outline-offset:-1px}
 .day .nmt.more{border-left-color:transparent;background:none;color:var(--sub);font-weight:600;padding-left:2px}
 @media (max-width:519px){#v-cal>.card:first-child{padding:12px 8px}.cal{gap:2px}.day{min-height:64px;padding:4px 2px 3px;border-radius:8px}.day .nmt{font-size:10px;padding:1px 1px 1px 2px;border-left-width:2px;letter-spacing:-.7px;border-radius:3px}.day .hn{font-size:8.5px}}
@@ -585,8 +593,22 @@ input:disabled{opacity:.5}
     $('#calGrid').querySelectorAll('.day').forEach(b => b.onclick = () => { selDay = b.dataset.d; renderCal(); setTimeout(() => $('#dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); });
     const nPend = groups(l => l.status === '승인대기' && l.date.slice(0, 7) === key).length;
     $('#calSum').innerHTML = `<div class="kpi"><b>${fmtN(nDays)}</b><span>휴가(일)</span></div><div class="kpi ${nPend ? 'w' : ''}"><b>${nPend}</b><span>승인대기</span></div>`
-      + `<div class="kpi ${nWarn ? 'r' : ''}"><b>${nWarn}</b><span>점검 필요일</span></div><div class="kpi"><b>${mine}</b><span>내 휴가(일)</span></div>`;
+      + `<button type="button" class="kpi btnk ${nWarn ? 'r' : ''}" id="kWarn" ${nWarn ? '' : 'disabled'}><b>${nWarn}</b><span>점검 필요일</span></button><div class="kpi"><b>${mine}</b><span>내 휴가(일)</span></div>`;
+    const kw = $('#kWarn'); if (kw) kw.onclick = () => showWarnDays(y, m);
     renderDay();
+  }
+  // 점검 필요일 사유 창 — 그달 점검에 걸린 날마다 휴가자 · 사유
+  function showWarnDays(y, m) {
+    const key = ym(y, m), n = new Date(y, m + 1, 0).getDate(), items = [];
+    for (let i = 1; i <= n; i++) {
+      const s = key + '-' + pad(i), rows = activeOn(s); if (!rows.length) continue;
+      const c = dayCheck(s); if (!c.length) continue;
+      items.push(`<div class="card" style="padding:12px;gap:8px;box-shadow:none"><div class="lbl">${mdw(s)} · 휴가 ${new Set(rows.map(r => r.name)).size}명 — ${rows.map(r => esc(r.name) + '(' + esc(tname(r)) + (r.status === '승인대기' ? ' · 승인대기' : '') + ')').join(', ')}</div><div class="issues">${issueHtml(c, s)}</div></div>`);
+    }
+    sheet(`<h3>${m + 1}월 점검 필요일 ${items.length}일</h3>
+      <div class="muted">같은 날 휴가 2명 이상 · 같은 설비 역량 동시 휴가 · 라인 정지 예상 · 허용 인원 초과에 걸린 날입니다. 이런 날의 휴가는 파트장 · 팀장 승인 후 등록됩니다.</div>
+      ${items.join('') || '<div class="empty">점검에 걸린 날이 없습니다.</div>'}
+      <button class="btn" id="wdClose" type="button">닫기</button>`, el => { el.querySelector('#wdClose').onclick = closeSheet; });
   }
   function renderDay() {
     const card = $('#dayCard');
