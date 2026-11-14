@@ -168,7 +168,7 @@ input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid v
 /* 전체표 */
 .tw{overflow-x:auto;border:1px solid var(--line);border-radius:12px;-webkit-overflow-scrolling:touch}
 table.mx{border-collapse:separate;border-spacing:0;font-size:12px;min-width:100%}
-table.mx th,table.mx td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;padding:0;height:30px;min-width:28px;font-variant-numeric:tabular-nums}
+table.mx th,table.mx td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);text-align:center;padding:0 1px;height:30px;min-width:32px;font-variant-numeric:tabular-nums}
 table.mx thead th{position:sticky;top:0;background:var(--soft);font-weight:700;z-index:1;line-height:1.15;padding:3px 0}
 table.mx thead th small{display:block;font-size:9.5px;font-weight:600;color:var(--sub)}
 table.mx th.sat{color:var(--sat)} table.mx th.sun,table.mx th.hol{color:var(--sun)}
@@ -176,7 +176,7 @@ table.mx td.wk{background:var(--soft2)}
 table.mx .nm{position:sticky;left:0;background:var(--card);text-align:left;padding:0 8px;min-width:84px;max-width:110px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;z-index:2}
 table.mx thead .nm{z-index:3;background:var(--soft)}
 table.mx tr.me .nm{color:var(--brand)}
-table.mx td .c{display:inline-flex;align-items:center;justify-content:center;width:22px;height:20px;border-radius:5px;color:#fff;font-weight:800;font-size:11px}
+table.mx td .c{display:inline-flex;align-items:center;justify-content:center;min-width:28px;height:20px;padding:0 2px;border-radius:5px;color:#fff;font-weight:800;font-size:10.5px;letter-spacing:-.5px}
 table.mx td .c.pend{outline:2px solid var(--warn);outline-offset:1px}
 table.mx tfoot td{font-weight:800;background:var(--soft)}
 table.mx tfoot td.amber{background:var(--warn);color:#fff} table.mx tfoot td.red{background:var(--bad);color:#fff}
@@ -382,6 +382,7 @@ input:disabled{opacity:.5}
   const colorOf = l => l.masked ? '#6B7A90' : typeOf(l.type).color;
   const tname = l => l.masked ? '휴가' : l.type;
   const abbr = l => l.masked ? '휴' : String(l.type).slice(0, 1);
+  const abbr2 = l => l.masked ? '휴가' : String(l.type).slice(0, 2);   // 전체표 칸 : 연차 · 보건 · 반차 · 경조 · 출산
   const isHalf = n => typeOf(n).days < 1;
   const activeOn = (date, exceptGid) => D.leaves.filter(l => l.date === date && ACTIVE.includes(l.status) && (!exceptGid || l.gid !== exceptGid));
   function dayCheck(date, cand, exceptGid) {
@@ -787,7 +788,7 @@ input:disabled{opacity:.5}
         const ls = byName[nm] || [];
         h += `<tr class="${nm === who.me ? 'me' : ''}"><td class="nm">${esc(nm)}</td>` + ds.map(s => {
           const d = pd(s), wk = d.getDay() === 0 || isHol(s);
-          return `<td class="${wk ? 'wk' : ''}">${ls.filter(l => l.date === s).map(l => `<span class="c ${l.status === '승인대기' ? 'pend' : ''}" style="background:${colorOf(l)}" title="${esc(tname(l))} · ${esc(l.status)}">${esc(abbr(l))}</span>`).join('')}</td>`;
+          return `<td class="${wk ? 'wk' : ''}">${ls.filter(l => l.date === s).map(l => `<span class="c ${l.status === '승인대기' ? 'pend' : ''}" style="background:${colorOf(l)}" title="${esc(tname(l))} · ${esc(l.status)}">${esc(abbr2(l))}</span>`).join('')}</td>`;
         }).join('') + `<td class="tot">${ls.length ? fmtN(ls.reduce((a, l) => a + l.days, 0)) : ''}</td></tr>`;
       });
     });
@@ -796,7 +797,7 @@ input:disabled{opacity:.5}
       const c = dayCheck(s); return `<td class="${lvOf(c)}" title="${esc(c.map(x => x.msg).join(' / '))}">${new Set(rows.map(r => r.name)).size}</td>`;
     }).join('') + `<td class="tot">${fmtN(act.reduce((a, l) => a + l.days, 0))}</td></tr></tfoot>`;
     $('#tbMx').innerHTML = h;
-    $('#tbLegend').innerHTML = D.types.map(t => `<span><i style="background:${t.color}"></i>${esc(String(t.name).slice(0, 1))} = ${esc(t.name)}</span>`).join('') + (D.leaves.some(l => l.masked) ? '<span><i style="background:#6B7A90"></i>휴 = 휴가(유형 비공개)</span>' : '');
+    $('#tbLegend').innerHTML = D.types.map(t => `<span><i style="background:${t.color}"></i>${esc(t.name)}</span>`).join('');
   }
 
   /* ── ⑤ 승인 ── */
