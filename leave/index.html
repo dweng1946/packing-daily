@@ -200,6 +200,14 @@ label.fd{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:7
 .chipn.pend{border-style:dashed;border-color:var(--warn)}
 input[type=date]{min-height:46px}
 input:disabled{opacity:.5}
+/* v3 : 달력 칸 이름 */
+.day .nms{display:flex;flex-direction:column;gap:2px;margin-top:2px;min-width:0}
+.day .nmt{display:block;font-style:normal;font-size:11px;font-weight:700;line-height:1.25;padding:1px 3px 1px 5px;border-radius:4px;border-left:3px solid var(--c);
+  background:color-mix(in srgb,var(--c) 13%,var(--card));color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:clip;letter-spacing:-.4px}
+.day .nmt.me{font-weight:900;color:var(--brand)}
+.day .nmt.pend{outline:1.5px dashed var(--warn);outline-offset:-1px}
+.day .nmt.more{border-left-color:transparent;background:none;color:var(--sub);font-weight:600;padding-left:2px}
+@media (max-width:519px){#v-cal>.card:first-child{padding:12px 8px}.cal{gap:2px}.day{min-height:64px;padding:4px 2px 3px;border-radius:8px}.day .nmt{font-size:10px;padding:1px 1px 1px 2px;border-left-width:2px;letter-spacing:-.7px;border-radius:3px}.day .hn{font-size:8.5px}}
 </style>
 </head>
 <body>
@@ -233,10 +241,9 @@ input:disabled{opacity:.5}
         <div class="mbar"><button class="arw" id="calPrev" type="button" aria-label="이전 달">‹</button><div class="seg" id="calSeg"></div><button class="arw" id="calNext" type="button" aria-label="다음 달">›</button></div>
         <div class="sumrow" id="calSum"></div>
         <div class="cal" id="calGrid"></div>
-        <div class="legend"><span><i style="background:var(--accent-soft)"></i>휴가 있음</span><span><i style="background:var(--warn)"></i>승인 필요(2명 · 역량 중복)</span><span><i style="background:var(--bad)"></i>허용 초과 · 유자격 부족</span><span><i style="background:var(--brand);border-radius:50%"></i>내 휴가</span></div>
+        <div class="legend"><span><i style="background:var(--accent-soft)"></i>휴가 있음</span><span><i style="background:var(--warn)"></i>승인 필요(2명 · 역량 중복)</span><span><i style="background:var(--bad)"></i>허용 초과 · 라인 정지 예상</span><span><i style="background:var(--brand);border-radius:50%"></i>내 휴가</span></div>
       </div>
       <div class="card" id="dayCard" hidden></div>
-      <div class="card"><h2><span class="t">이달 휴가 일정</span><small id="agN"></small></h2><div class="agenda" id="agenda"></div></div>
     </section>
 
     <!-- ② 신청 -->
@@ -262,7 +269,7 @@ input:disabled{opacity:.5}
         <div class="cal pcal" id="apGrid"></div>
       </div>
       <div class="card">
-        <h2><span class="t">사전 점검</span><small>같은 날 인원 · 설비 역량 · 남은 유자격</small></h2>
+        <h2><span class="t">사전 점검</span><small>같은 날 인원 · 설비 역량 · 라인 정지</small></h2>
         <div class="issues" id="apCheck"></div>
       </div>
       <div class="card">
@@ -348,7 +355,8 @@ input:disabled{opacity:.5}
       if (!off.length) return;
       const left = qual.length - off.length;
       if (off.length >= 2) { dup.push(p + ' ' + off.length + '명'); off.forEach(n => { if (dupN.indexOf(n) < 0) dupN.push(n); }); }
-      if (left < ctx.need) out.push({ lv: 'red', code: 'short', pos: p, left: left, msg: p + ' 남은 유자격 ' + left + '명 — 주·야 ' + ctx.need + '명 기준 부족' });
+      const need = (ctx.needs && ctx.needs[p]) || ctx.need;
+      if (left < need) out.push({ lv: 'red', code: 'short', pos: p, left: left, msg: '라인 정지 예상 — ' + p + ' 가능 인원 ' + left + '명(주·야 ' + need + '명 필요)' });
     });
     if (dup.length) out.push({ lv: 'amber', code: 'dup', names: dupN, msg: '같은 설비 역량 동시 휴가 — ' + dup.join(' · ') });
     return out;
@@ -359,7 +367,7 @@ input:disabled{opacity:.5}
     if (CTX) return CTX;
     const qual = {};
     D.positions.forEach(p => { qual[p] = D.roster.filter(r => r.active && D.cfg.qualGrades.indexOf(r.skills[p]) >= 0).map(r => r.name); });
-    return (CTX = { dayCap: D.cfg.dayCap, approveAt: D.cfg.approveAt, need: D.cfg.need, positions: D.positions, qual });
+    return (CTX = { dayCap: D.cfg.dayCap, approveAt: D.cfg.approveAt, need: D.cfg.need, needs: D.needs || {}, positions: D.positions, qual });
   }
   const typeOf = n => D.types.find(t => t.name === n) || { name: n, days: 1, kind: '휴가', color: '#6B7A90', cap: true };
   const colorOf = l => l.masked ? '#6B7A90' : typeOf(l.type).color;
@@ -570,7 +578,7 @@ input:disabled{opacity:.5}
       const cls = ['day', inM ? '' : 'out', d.getDay() === 6 ? 'sat' : '', d.getDay() === 0 ? 'sun' : '', hol ? 'hol' : '', s === TODAY ? 'today' : '', s === selDay ? 'sel' : '',
         rows.some(r => r.name === who.me) ? 'mine' : '', lv ? 'l-' + lv : ''].filter(Boolean).join(' ');
       html += `<button type="button" class="${cls}" data-d="${s}"><span class="dn">${d.getDate()}</span>${hol ? `<span class="hn">${esc(hol.name)}</span>` : ''}`
-        + (ppl.length ? `<span class="pn">${ppl.slice(0, 2).map(esc).join(' · ')}${ppl.length > 2 ? ' 외' : ''}</span><span class="dots">${rows.slice(0, 6).map(r => `<i style="background:${colorOf(r)}"></i>`).join('')}</span><span class="cnt${pend ? ' pend' : ''}">${ppl.length}명</span>` : '')
+        + (ppl.length ? `<span class="nms">${ppl.slice(0, ppl.length > 3 ? 2 : 3).map(nm => { const r = rows.find(x => x.name === nm); return `<i class="nmt${r.status === '승인대기' ? ' pend' : ''}${nm === who.me ? ' me' : ''}" style="--c:${colorOf(r)}">${esc(nm)}</i>`; }).join('')}${ppl.length > 3 ? `<i class="nmt more">외 ${ppl.length - 2}</i>` : ''}</span>` : '')
         + '</button>';
     });
     $('#calGrid').innerHTML = html;
@@ -579,13 +587,6 @@ input:disabled{opacity:.5}
     $('#calSum').innerHTML = `<div class="kpi"><b>${fmtN(nDays)}</b><span>휴가(일)</span></div><div class="kpi ${nPend ? 'w' : ''}"><b>${nPend}</b><span>승인대기</span></div>`
       + `<div class="kpi ${nWarn ? 'r' : ''}"><b>${nWarn}</b><span>점검 필요일</span></div><div class="kpi"><b>${mine}</b><span>내 휴가(일)</span></div>`;
     renderDay();
-    const list = [...new Set(D.leaves.filter(l => l.date.slice(0, 7) === key && ACTIVE.includes(l.status)).map(l => l.date))].sort();
-    $('#agN').textContent = list.length ? list.length + '일' : '';
-    $('#agenda').innerHTML = list.length ? list.map(s => {
-      const rows = activeOn(s), lv = lvOf(dayCheck(s));
-      return `<div class="ag" data-d="${s}"><div class="d">${md(s)}<small>${wd(s)}요일</small></div><div class="ppl">${rows.map(r => `<span class="chipn ${r.name === who.me ? 'me' : ''} ${r.status === '승인대기' ? 'pend' : ''}"><i style="background:${colorOf(r)}"></i>${esc(r.name)} <small class="muted">${esc(tname(r))}${r.status === '승인대기' ? ' · 승인대기' : ''}</small></span>`).join('')}${lv ? `<span class="flag ${lv}">${lv === 'red' ? '점검' : '승인'}</span>` : ''}</div></div>`;
-    }).join('') : '<div class="empty">이달 등록된 휴가가 없습니다.</div>';
-    $('#agenda').querySelectorAll('.ag').forEach(a => a.onclick = () => { selDay = a.dataset.d; renderCal(); setTimeout(() => $('#dayCard').scrollIntoView({ behavior: 'smooth', block: 'start' }), 30); });
   }
   function renderDay() {
     const card = $('#dayCard');
@@ -597,7 +598,7 @@ input:disabled{opacity:.5}
     card.hidden = false;
     card.innerHTML = `<h2><span class="t">${+selDay.slice(5, 7)}월 ${+selDay.slice(8, 10)}일 (${wd(selDay)})${hol ? ' · ' + esc(hol.name) : ''}</span><small>휴가 ${new Set(rows.map(r => r.name)).size}명 / 허용 ${D.cfg.dayCap}명</small></h2>`
       + `<div class="plist">${gs.length ? gs.map(g => groupRow(g, { day: selDay })).join('') : '<div class="empty">휴가자가 없습니다.</div>'}</div>`
-      + (rows.length ? `<div class="lbl">사전 점검</div><div class="issues">${issueHtml(chk, selDay)}</div>` + (lvOf(chk) ? '<div class="muted">생산라인 구성에 문제가 예상되는 날입니다 — 파트장 · 팀장 확인 후 등록됩니다.</div>' : '') : '')
+      + (rows.length ? `<div class="lbl">사전 점검</div><div class="issues">${issueHtml(chk, selDay)}</div>` + (lvOf(chk) ? '<div class="muted">생산라인 구성에 문제가 예상되는 날입니다(라인 정지 · 역량 중복) — 파트장 · 팀장 확인 후 등록됩니다.</div>' : '') : '')
       + (past.length ? `<details><summary class="muted">취소 · 반려 ${past.length}건</summary><div class="plist" style="margin-top:8px">${past.map(g => groupRow(g)).join('')}</div></details>` : '')
       + (canApply || isAdmin() ? `<button class="btn" id="dayApply" type="button">이 날 휴가 등록</button>` : '');
     bindActs(card);
@@ -789,9 +790,9 @@ input:disabled{opacity:.5}
     const done = groups(l => ['승인', '반려', '취소'].includes(l.status) && !!l.handler).sort((a, b) => (b.at || '').localeCompare(a.at || '')).slice(0, 30);
     $('#rvDone').innerHTML = done.length ? done.map(g => groupRow(g, {})).join('') : '<div class="empty">처리 이력이 없습니다.</div>';
     const c = D.cfg;
-    $('#rvRule').innerHTML = `1일 휴가 허용 <b>${c.dayCap}명</b>(연차 · 보건 · 반차 등 합산, 반차 0.5) · 같은 날 <b>${c.approveAt}명 이상</b>이면 승인 필요 · 같은 설비 역량 동시 휴가 · 포지션별 필요 유자격 <b>${c.need}명</b>(주 · 야) 미만 → 승인대기<br>`
+    $('#rvRule').innerHTML = `1일 휴가 허용 <b>${c.dayCap}명</b>(연차 · 보건 · 반차 등 합산, 반차 0.5) · 같은 날 <b>${c.approveAt}명 이상</b>이면 승인 필요 · 같은 설비 역량 동시 휴가 · 라인 정지 예상(묶음별 가능 인원 < 라인 수 × 주·야 ${c.need}명) → 승인대기<br>`
       + `유자격 등급 <b>${esc(c.qualGrades.join(', '))}</b> · 시작일 <b>당월 포함 ${c.months}개월</b> 안 · 토요일 ${c.sat ? '사용일 포함' : '사용일 제외'} · 보건휴가 유형 ${c.healthOpen ? '공개' : '본인 · 승인자만'}<br>`
-      + `포지션 ${D.positions.length}개 : ${D.positions.map(p => `${esc(p)} ${ctxBase().qual[p].length}명`).join(' · ')}`;
+      + `역량 묶음 ${D.positions.length}개(가능 인원 / 필요) : ${D.positions.map(p => `${esc(p)} ${ctxBase().qual[p].length}명 / ${(D.needs || {})[p] || c.need}명`).join(' · ')}`;
   }
 
   /* ── 견본(구글 시트 연결 전) ── */
@@ -818,9 +819,14 @@ input:disabled{opacity:.5}
        [23, 1, 22, '보건휴가'], [27, 1, 5, '연차휴가'], [33, 2, 8, '연차휴가'], [41, 1, 16, '반차휴가'], [47, 1, 10, '연차휴가'], [20, 90, 27, '출산휴가']].forEach(a => add(...a));
       store.set('lv_demo2', leaves); store.set('lv_demo2_m', T.slice(0, 7));
     }
+    const GR = [['카운터1 1차', ['카운터1 1차'], 1], ['카운터1 2차', ['카운터1 2차'], 1], ['카운터2·3 1차', ['카운터2 1차', '카운터3 1차'], 2], ['카운터2·3 2차', ['카운터2 2차', '카운터3 2차'], 2],
+      ['블리스터4 1차', ['블리스터4 1차'], 1], ['블리스터4 2차', ['블리스터4 2차'], 1], ['블리스터5 1차', ['블리스터5 1차'], 1], ['블리스터5 2차', ['블리스터5 2차'], 1]];
+    const rk = g => g === 'A' ? 3 : g === 'B' ? 2 : g ? 1 : 0;
+    roster.forEach(r => { const o = {}; GR.forEach(([n, cols]) => { let b = ''; cols.forEach(c => { if (rk(r.skills[c]) > rk(b)) b = r.skills[c]; }); if (b) o[n] = b; }); r.skills = o; });
+    const needs = {}; GR.forEach(([n, , l]) => { needs[n] = l * 2; });
     return { ok: true, pinOk: true, adminOk: !!who && who.admin === '0000', today: T,
       cfg: { dayCap: 2, approveAt: 2, need: 2, months: 3, sat: false, healthOpen: false, qualGrades: ['A', 'B'], maxSpan: 120 },
-      types, holidays: [{ date: '2026-12-25', name: '성탄절' }, { date: '2027-01-01', name: '신정' }], positions: POS, roster, leaves: leaves.map(l => Object.assign({}, l)) };
+      types, holidays: [{ date: '2026-12-25', name: '성탄절' }, { date: '2027-01-01', name: '신정' }], positions: GR.map(g => g[0]), needs, roster, leaves: leaves.map(l => Object.assign({}, l)) };
   }
   function demoPost(b) {
     const all = store.get('lv_demo2') || [];
