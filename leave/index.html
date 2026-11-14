@@ -250,7 +250,7 @@ input:disabled{opacity:.5}
         <div class="mbar"><button class="arw" id="calPrev" type="button" aria-label="이전 달">‹</button><div class="seg" id="calSeg"></div><button class="arw" id="calNext" type="button" aria-label="다음 달">›</button></div>
         <div class="sumrow" id="calSum"></div>
         <div class="cal" id="calGrid"></div>
-        <div class="legend"><span><i style="background:var(--accent-soft)"></i>휴가 있음</span><span><i style="background:var(--warn)"></i>승인 필요(2명 · 역량 중복)</span><span><i style="background:var(--bad)"></i>허용 초과 · 라인 정지 예상</span><span><i style="background:var(--brand);border-radius:50%"></i>내 휴가</span></div>
+        <div class="legend"><span><i style="background:var(--accent-soft)"></i>휴가 있음</span><span><i style="background:var(--bad)"></i>승인 필요(2명 초과 · 라인 정지 예상)</span><span><i style="background:var(--brand);border-radius:50%"></i>내 휴가</span></div>
       </div>
       <div class="card" id="dayCard" hidden></div>
     </section>
@@ -278,7 +278,7 @@ input:disabled{opacity:.5}
         <div class="cal pcal" id="apGrid"></div>
       </div>
       <div class="card">
-        <h2><span class="t">사전 점검</span><small>같은 날 인원 · 설비 역량 · 라인 정지</small></h2>
+        <h2><span class="t">사전 점검</span><small>같은 날 인원(2명까지) · 라인 정지</small></h2>
         <div class="issues" id="apCheck"></div>
       </div>
       <div class="card">
@@ -355,8 +355,7 @@ input:disabled{opacity:.5}
     const names = Object.keys(per);
     const total = names.reduce((a, n) => a + per[n].cap, 0);
     const out = [];
-    if (total > ctx.dayCap) out.push({ lv: 'red', code: 'cap', msg: '휴가 ' + total + '명 — 1일 허용 ' + ctx.dayCap + '명 초과' });
-    else if (ctx.approveAt && total >= ctx.approveAt) out.push({ lv: 'amber', code: 'pair', msg: '같은 날 휴가 ' + total + '명 — 파트장 · 팀장 승인 필요' });
+    if (total > ctx.dayCap) out.push({ lv: 'red', code: 'cap', msg: '같은 날 휴가 ' + total + '명 — ' + ctx.dayCap + '명 초과, 파트장 · 팀장 승인 필요' });
     const dup = [], dupN = [];
     ctx.positions.forEach(p => {
       const qual = ctx.qual[p] || [];
@@ -367,10 +366,11 @@ input:disabled{opacity:.5}
       const need = (ctx.needs && ctx.needs[p]) || ctx.need;
       if (left < need) out.push({ lv: 'red', code: 'short', pos: p, left: left, msg: '라인 정지 예상 — ' + p + ' 가능 인원 ' + left + '명(주·야 ' + need + '명 필요)' });
     });
-    if (dup.length) out.push({ lv: 'amber', code: 'dup', names: dupN, msg: '같은 설비 역량 동시 휴가 — ' + dup.join(' · ') });
+    if (dup.length) out.push({ lv: 'info', code: 'dup', names: dupN, msg: '참고 : 같은 설비 역량 동시 휴가 — ' + dup.join(' · ') });   // 안내만(승인 불필요)
     return out;
   }
-  const lvOf = list => list.some(c => c.lv === 'red') ? 'red' : list.length ? 'amber' : '';
+  const lvOf = list => list.some(c => c.lv === 'red') ? 'red' : list.some(c => c.lv === 'amber') ? 'amber' : '';   // info(참고)는 색 · 승인에 반영 안 함
+  const needOk = list => list.filter(c => c.lv !== 'info');
   let CTX = null;
   function ctxBase() {
     if (CTX) return CTX;
@@ -532,7 +532,7 @@ input:disabled{opacity:.5}
 
   /* ── 공통 : 이슈 · 묶음 줄 ── */
   function issueHtml(list, altDay) {
-    if (!list.length) return '<div class="iss ok"><span class="ic">✓</span><div>점검 통과 — 바로 등록됩니다</div></div>';
+    if (!needOk(list).length) return '<div class="iss ok"><span class="ic">✓</span><div>점검 통과 — 바로 등록됩니다</div></div>' + list.map(c => `<div class="iss info"><span class="ic">i</span><div>${esc(c.msg)}${c.names ? ` <small>${c.names.map(esc).join(', ')}</small>` : ''}</div></div>`).join('');
     return list.map(c => {
       let alt = '';
       if (altDay && c.code === 'short') {
@@ -540,7 +540,7 @@ input:disabled{opacity:.5}
         const cands = ctxBase().qual[c.pos].filter(n => !off.has(n));
         alt = `<small>대체 가능 : ${cands.length ? cands.map(esc).join(', ') : '없음'}</small>`;
       }
-      return `<div class="iss ${c.lv}"><span class="ic">${c.lv === 'red' ? '!' : '▲'}</span><div>${esc(c.msg)}${c.names ? ` <small>${c.names.map(esc).join(', ')}</small>` : ''}${alt}</div></div>`;
+      return `<div class="iss ${c.lv}"><span class="ic">${c.lv === 'red' ? '!' : c.lv === 'info' ? 'i' : '▲'}</span><div>${esc(c.msg)}${c.names ? ` <small>${c.names.map(esc).join(', ')}</small>` : ''}${alt}</div></div>`;
     }).join('');
   }
   function groupRow(g, o) {
@@ -608,7 +608,7 @@ input:disabled{opacity:.5}
       items.push(`<div class="card" style="padding:12px;gap:8px;box-shadow:none"><div class="lbl">${mdw(s)} · 휴가 ${new Set(rows.map(r => r.name)).size}명 — ${rows.map(r => esc(r.name) + '(' + esc(tname(r)) + (r.status === '승인대기' ? ' · 승인대기' : '') + ')').join(', ')}</div><div class="issues">${issueHtml(c, s)}</div></div>`);
     }
     sheet(`<h3>${m + 1}월 점검 필요일 ${items.length}일</h3>
-      <div class="muted">같은 날 휴가 2명 이상 · 같은 설비 역량 동시 휴가 · 라인 정지 예상 · 허용 인원 초과에 걸린 날입니다. 이런 날의 휴가는 파트장 · 팀장 승인 후 등록됩니다.</div>
+      <div class="muted">같은 날 휴가 2명 초과 또는 라인 정지 예상에 걸린 날입니다. 이런 날의 휴가는 파트장 · 팀장 승인 후 등록됩니다.</div>
       ${items.join('') || '<div class="empty">점검에 걸린 날이 없습니다.</div>'}
       <button class="btn" id="wdClose" type="button">닫기</button>`, el => { el.querySelector('#wdClose').onclick = closeSheet; });
   }
@@ -622,7 +622,7 @@ input:disabled{opacity:.5}
     card.hidden = false;
     card.innerHTML = `<h2><span class="t">${+selDay.slice(5, 7)}월 ${+selDay.slice(8, 10)}일 (${wd(selDay)})${hol ? ' · ' + esc(hol.name) : ''}</span><small>휴가 ${new Set(rows.map(r => r.name)).size}명 / 허용 ${D.cfg.dayCap}명</small></h2>`
       + `<div class="plist">${gs.length ? gs.map(g => groupRow(g, { day: selDay })).join('') : '<div class="empty">휴가자가 없습니다.</div>'}</div>`
-      + (rows.length ? `<div class="lbl">사전 점검</div><div class="issues">${issueHtml(chk, selDay)}</div>` + (lvOf(chk) ? '<div class="muted">생산라인 구성에 문제가 예상되는 날입니다(라인 정지 · 역량 중복) — 파트장 · 팀장 확인 후 등록됩니다.</div>' : '') : '')
+      + (rows.length ? `<div class="lbl">사전 점검</div><div class="issues">${issueHtml(chk, selDay)}</div>` + (lvOf(chk) ? '<div class="muted">생산라인 구성에 문제가 예상되는 날입니다(2명 초과 · 라인 정지) — 파트장 · 팀장 확인 후 등록됩니다.</div>' : '') : '')
       + (past.length ? `<details><summary class="muted">취소 · 반려 ${past.length}건</summary><div class="plist" style="margin-top:8px">${past.map(g => groupRow(g)).join('')}</div></details>` : '')
       + (canApply || isAdmin() ? `<button class="btn" id="dayApply" type="button">이 날 휴가 등록</button>` : '');
     bindActs(card);
@@ -695,14 +695,15 @@ input:disabled{opacity:.5}
     else {
       const busy = dates.filter(s => { const mine = D.leaves.filter(l => l.name === AP.name && l.date === s && ACTIVE.includes(l.status) && (!ed || l.gid !== ed.gid)); return mine.length && !(typ.days < 1 && mine.length === 1 && isHalf(mine[0].type)); });
       const res = dates.map(s => ({ s, c: dayCheck(s, { name: AP.name, type: typ.name, days: typ.days, kind: typ.kind, cap: typ.cap }, ed && ed.gid) }));
-      const bad = res.filter(r => r.c.length);
+      const bad = res.filter(r => needOk(r.c).length);
       if (busy.length) { state = 'block'; chkHtml += `<div class="iss red"><span class="ic">!</span><div>이미 휴가가 있는 날 : ${busy.map(mdw).join(', ')} — 기간을 바꾸세요</div></div>`; }
       if (bad.length) {
         if (state !== 'block') state = 'approve';
         chkHtml += bad.slice(0, 12).map(r => `<div class="lbl" style="margin-top:4px">${mdw(r.s)}</div>${issueHtml(r.c)}`).join('') + (bad.length > 12 ? `<div class="muted">외 ${bad.length - 12}일</div>` : '');
         chkHtml += `<div class="iss info"><span class="ic">i</span><div>생산라인 구성에 문제가 예상됩니다. <b>파트장 · 팀장에게 확인을 요청</b>하세요 — 승인되어야 휴가가 등록됩니다.<small>대체 근무를 미리 협의해 인수인계 메모에 적어 두면 승인이 빠릅니다.</small></div></div>`;
       }
-      if (!bad.length && !busy.length) chkHtml = `<div class="iss ok"><span class="ic">✓</span><div>사용일 ${dates.length}일 모두 점검 통과 — 바로 등록됩니다</div></div>`;
+      const notes = res.filter(r => !needOk(r.c).length && r.c.length);
+      if (!bad.length && !busy.length) chkHtml = `<div class="iss ok"><span class="ic">✓</span><div>사용일 ${dates.length}일 모두 점검 통과 — 바로 등록됩니다</div></div>` + notes.slice(0, 6).map(r => `<div class="lbl" style="margin-top:4px">${mdw(r.s)}</div>${issueHtml(r.c)}`).join('');
       else if (bad.length < dates.length && !busy.length) chkHtml = `<div class="muted">사용일 ${dates.length}일 중 ${bad.length}일이 점검에 걸렸습니다.</div>` + chkHtml;
     }
     $('#apCheck').innerHTML = chkHtml;
@@ -723,7 +724,7 @@ input:disabled{opacity:.5}
         const ks = Object.keys(res.checks).sort();
         const list = ks.slice(0, 10).map(s => `<div class="lbl">${mdw(s)}</div>${issueHtml(res.checks[s])}`).join('') + (ks.length > 10 ? `<div class="muted">외 ${ks.length - 10}일</div>` : '');
         sheet(`<h3>${isAdmin() ? '점검에 걸린 날이 있습니다' : '파트장 · 팀장 확인이 필요합니다'}</h3>
-          <div class="muted">${isAdmin() ? '승인자 등록은 바로 「승인」으로 저장됩니다.' : '같은 날 휴가자가 많거나 같은 설비 역량을 가진 작업자와 겹쳐 생산라인 구성에 문제가 예상됩니다. 파트장 · 팀장에게 확인을 요청하세요 — <b>승인되어야 휴가가 등록</b>됩니다.'}</div>
+          <div class="muted">${isAdmin() ? '승인자 등록은 바로 「승인」으로 저장됩니다.' : '같은 날 휴가자가 2명을 넘거나 설비를 운영할 인원이 모자라 생산라인 구성에 문제가 예상됩니다. 파트장 · 팀장에게 확인을 요청하세요 — <b>승인되어야 휴가가 등록</b>됩니다.'}</div>
           <div class="issues">${list}</div>
           <div class="row2"><button class="btn ghost" id="cfNo" type="button">날짜 다시 고르기</button><button class="btn warn" id="cfGo" type="button">${isAdmin() ? '그대로 등록' : '승인 요청'}</button></div>`, el => {
           el.querySelector('#cfNo').onclick = closeSheet;
@@ -814,7 +815,7 @@ input:disabled{opacity:.5}
     const done = groups(l => ['승인', '반려', '취소'].includes(l.status) && !!l.handler).sort((a, b) => (b.at || '').localeCompare(a.at || '')).slice(0, 30);
     $('#rvDone').innerHTML = done.length ? done.map(g => groupRow(g, {})).join('') : '<div class="empty">처리 이력이 없습니다.</div>';
     const c = D.cfg;
-    $('#rvRule').innerHTML = `1일 휴가 허용 <b>${c.dayCap}명</b>(연차 · 보건 · 반차 등 합산, 반차 0.5) · 같은 날 <b>${c.approveAt}명 이상</b>이면 승인 필요 · 같은 설비 역량 동시 휴가 · 라인 정지 예상(묶음별 가능 인원 < 라인 수 × 주·야 ${c.need}명) → 승인대기<br>`
+    $('#rvRule').innerHTML = `같은 날 휴가 <b>${c.dayCap}명까지 바로 등록</b>(연차 · 보건 · 반차 등 합산, 반차 0.5) · <b>${c.dayCap}명 초과</b> 또는 <b>라인 정지 예상</b>(묶음별 가능 인원 < 라인 수 × 주·야 ${c.need}명) → 승인대기 · 같은 설비 역량 동시 휴가는 참고 안내만<br>`
       + `유자격 등급 <b>${esc(c.qualGrades.join(', '))}</b> · 시작일 <b>당월 포함 ${c.months}개월</b> 안 · 토요일 ${c.sat ? '사용일 포함' : '사용일 제외'} · 보건휴가 유형 ${c.healthOpen ? '공개' : '본인 · 승인자만'}<br>`
       + `역량 묶음 ${D.positions.length}개(가능 인원 / 필요) : ${D.positions.map(p => `${esc(p)} ${ctxBase().qual[p].length}명 / ${(D.needs || {})[p] || c.need}명`).join(' · ')}`;
   }
